@@ -21,6 +21,13 @@ const MAX_PIXEL_RATIO = 2;
  */
 const INTEGER_SCALE_THRESHOLD = 0.82;
 
+export interface Insets {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+}
+
 export interface Layout {
   /** CSS pixels of the visible canvas. */
   readonly width: number;
@@ -30,6 +37,12 @@ export interface Layout {
   /** Top-left of the scaled world buffer, in CSS pixels. */
   readonly offsetX: number;
   readonly offsetY: number;
+  /**
+   * Safe-area insets in CSS pixels. On a notched phone held sideways the
+   * cutout eats into one edge and the home indicator into the bottom, so the
+   * HUD and the thumb pad have to stay clear of them.
+   */
+  readonly insets: Insets;
 }
 
 export class Renderer {
@@ -46,7 +59,14 @@ export class Renderer {
     scale: 1,
     offsetX: 0,
     offsetY: 0,
+    insets: { top: 0, right: 0, bottom: 0, left: 0 },
   };
+
+  /**
+   * A zero-sized element whose padding is set from the env() safe-area values.
+   * Reading them back is the only way to get at those numbers from canvas code.
+   */
+  private readonly insetProbe = createInsetProbe();
 
   constructor(parent: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -56,6 +76,8 @@ export class Renderer {
     const screen = this.canvas.getContext('2d', { alpha: false });
     if (!screen) throw new Error('2D canvas is not available in this browser');
     this.screen = screen;
+
+    document.body.append(this.insetProbe);
 
     this.buffer = document.createElement('canvas');
     this.buffer.width = VIRTUAL_WIDTH;
@@ -98,6 +120,7 @@ export class Renderer {
       scale,
       offsetX: Math.round((width - VIRTUAL_WIDTH * scale) / 2),
       offsetY: Math.round((height - VIRTUAL_HEIGHT * scale) / 2),
+      insets: readInsets(this.insetProbe),
     };
   }
 
@@ -127,4 +150,36 @@ function chooseScale(width: number, height: number): number {
   const integer = Math.floor(exact);
   if (integer >= 1 && integer / exact >= INTEGER_SCALE_THRESHOLD) return integer;
   return Math.max(exact, 0.1);
+}
+
+function createInsetProbe(): HTMLDivElement {
+  const probe = document.createElement('div');
+  probe.style.cssText = [
+    'position:fixed',
+    'top:0',
+    'left:0',
+    'width:0',
+    'height:0',
+    'visibility:hidden',
+    'pointer-events:none',
+    'padding-top:env(safe-area-inset-top,0px)',
+    'padding-right:env(safe-area-inset-right,0px)',
+    'padding-bottom:env(safe-area-inset-bottom,0px)',
+    'padding-left:env(safe-area-inset-left,0px)',
+  ].join(';');
+  return probe;
+}
+
+function readInsets(probe: HTMLDivElement): Insets {
+  const style = getComputedStyle(probe);
+  const read = (value: string): number => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    top: read(style.paddingTop),
+    right: read(style.paddingRight),
+    bottom: read(style.paddingBottom),
+    left: read(style.paddingLeft),
+  };
 }

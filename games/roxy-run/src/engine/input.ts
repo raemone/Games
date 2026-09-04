@@ -117,10 +117,14 @@ export class Input {
     const gap = base * 0.5;
     const jumpRadius = base * 1.2;
     const rollRadius = base * 0.8;
-    const bottom = layout.height - margin;
+    // Held sideways, a notched phone eats one edge and the home indicator the
+    // bottom; a jump button under either is a button that does not work.
+    const bottom = layout.height - margin - layout.insets.bottom;
+    const leftEdge = margin + layout.insets.left;
+    const rightEdge = layout.width - margin - layout.insets.right;
 
-    const padSide = this.mirrored ? layout.width - margin : margin;
-    const actSide = this.mirrored ? margin : layout.width - margin;
+    const padSide = this.mirrored ? rightEdge : leftEdge;
+    const actSide = this.mirrored ? leftEdge : rightEdge;
     const dir = this.mirrored ? -1 : 1;
 
     this.buttons = [

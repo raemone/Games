@@ -16,6 +16,7 @@ import { Session } from './session';
 import { Sprites } from './sprites';
 import { themeForWorld } from './theme';
 import { WorldRenderer } from './draw';
+import { drawButtonRow, drawCornerControls, hitButton, type UiButton } from './ui';
 
 type Screen = 'title' | 'select' | 'play' | 'paused' | 'complete' | 'gameOver' | 'finished';
 
@@ -30,6 +31,8 @@ export class Game {
   private save: SaveData;
   private levelIndex = 0;
   private hotspots: Hotspot[] = [];
+  /** Tappable buttons for the current screen, refreshed every render. */
+  private buttons: UiButton[] = [];
   private tick = 0;
   /** Blocks input for a few ticks after a screen change, so one tap is one action. */
   private inputCooldown = 0;
@@ -61,6 +64,16 @@ export class Game {
     const tap = this.input.takeTap();
     const ready = this.inputCooldown === 0;
 
+    // Buttons win over whatever else a tap would have done on this screen,
+    // so tapping "pause" never also counts as a tap-to-continue.
+    if (ready && tap) {
+      const pressed = hitButton(this.buttons, tap.x, tap.y);
+      if (pressed) {
+        this.pressButton(pressed);
+        return;
+      }
+    }
+
     switch (this.screen) {
       case 'title':
         if (ready && (state.confirmPressed || tap)) this.go('select');
@@ -75,8 +88,7 @@ export class Game {
         break;
 
       case 'paused':
-        if (ready && state.pausePressed) this.go('play');
-        else if (ready && (state.confirmPressed || tap)) this.go('play');
+        if (ready && (state.pausePressed || state.confirmPressed || tap)) this.go('play');
         break;
 
       case 'complete':
@@ -91,6 +103,42 @@ export class Game {
         if (ready && (state.confirmPressed || tap)) this.go('select');
         break;
     }
+  }
+
+  private pressButton(id: string): void {
+    this.audio.play('select');
+    switch (id) {
+      case 'pause':
+        this.go('paused');
+        break;
+      case 'resume':
+        this.go('play');
+        break;
+      case 'mute':
+        this.toggleMute();
+        break;
+      case 'levels':
+        this.go('select');
+        break;
+      case 'retry':
+        this.retryLevel();
+        break;
+      case 'next':
+        this.advance();
+        break;
+      case 'play':
+        this.go('select');
+        break;
+      default:
+        break;
+    }
+  }
+
+  private toggleMute(): void {
+    const muted = !this.save.settings.muted;
+    this.save = { ...this.save, settings: { ...this.save.settings, muted } };
+    this.audio.setMuted(muted);
+    storage.save(this.save);
   }
 
   private updateSelect(state: InputState, tap: { x: number; y: number } | null, ready: boolean): void {
@@ -254,9 +302,19 @@ export class Game {
       drawHud(screenCtx, layout, this.session);
     }
 
-    this.renderOverlays();
+    this.buttons = this.renderOverlays();
+
+    // Pause and mute live in the corner during play; on the menus only mute.
+    const playing = this.screen === 'play';
+    if (playing || this.screen === 'title' || this.screen === 'select') {
+      this.buttons = [
+        ...this.buttons,
+        ...drawCornerControls(screenCtx, layout, this.save.settings.muted, playing),
+      ];
+    }
+
     // The pad is only useful while playing; on the menus it covers the cards.
-    if (this.screen === 'play') drawTouchControls(screenCtx, this.input);
+    if (playing) drawTouchControls(screenCtx, this.input);
 
     if (this.renderer.isPortrait) {
       drawOverlay(screenCtx, layout, {
@@ -274,15 +332,27 @@ export class Game {
     this.renderer.present();
   }
 
-  private renderOverlays(): void {
+  /** Draw the overlay for the current screen and return its buttons. */
+  private renderOverlays(): UiButton[] {
     const layout = this.renderer.layout;
     const ctx = this.renderer.screen;
     const level = LEVELS[this.levelIndex];
+    const buttonRow = layout.height * 0.78;
 
     switch (this.screen) {
       case 'paused':
-        drawOverlay(ctx, layout, { title: 'PAUSED', prompt: 'Tap to keep going' }, this.tick);
-        break;
+        drawOverlay(ctx, layout, { title: 'PAUSED' }, this.tick);
+        return drawButtonRow(
+          ctx,
+          layout,
+          buttonRow,
+          [
+            { id: 'resume', text: 'Keep going' },
+            { id: 'levels', text: 'Levels' },
+            { id: 'mute', text: this.save.settings.muted ? 'Sound on' : 'Sound off' },
+          ],
+          null,
+        );
 
       case 'complete':
         drawOverlay(
@@ -295,11 +365,19 @@ export class Game {
               `Score ${formatScore(this.run.score)}`,
               `Time ${formatTime(this.run.elapsedMs)}`,
             ],
-            prompt: nextLevel(level?.id ?? '') ? 'Tap for the next level' : 'Tap to continue',
           },
           this.tick,
         );
-        break;
+        return drawButtonRow(
+          ctx,
+          layout,
+          buttonRow,
+          [
+            { id: 'next', text: nextLevel(level?.id ?? '') ? 'Next level' : 'Continue' },
+            { id: 'levels', text: 'Levels' },
+          ],
+          'next',
+        );
 
       case 'gameOver':
         drawOverlay(
@@ -308,11 +386,19 @@ export class Game {
           {
             title: 'OH NO',
             lines: ['Roxy is out of lives.', `Score ${formatScore(this.run.score)}`],
-            prompt: 'Tap to try again',
           },
           this.tick,
         );
-        break;
+        return drawButtonRow(
+          ctx,
+          layout,
+          buttonRow,
+          [
+            { id: 'retry', text: 'Try again' },
+            { id: 'levels', text: 'Levels' },
+          ],
+          'retry',
+        );
 
       case 'finished':
         drawOverlay(
@@ -325,14 +411,15 @@ export class Game {
               `Final score ${formatScore(this.run.score)}`,
               `Bones collected in all ${this.save.totalBones}`,
             ],
-            prompt: 'Tap to choose another level',
           },
           this.tick,
         );
-        break;
+        return drawButtonRow(ctx, layout, buttonRow, [{ id: 'levels', text: 'Choose a level' }], 'levels');
 
       default:
         break;
     }
+
+    return [];
   }
 }

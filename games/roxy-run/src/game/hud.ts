@@ -22,6 +22,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, layout: Layout, session: 
   const size = baseSize(layout);
   const pad = size * 0.6;
   const lineHeight = size * 1.25;
+  const left = pad + layout.insets.left;
+  const top = pad + layout.insets.top;
 
   ctx.textBaseline = 'top';
   ctx.font = `600 ${size}px system-ui, sans-serif`;
@@ -34,14 +36,14 @@ export function drawHud(ctx: CanvasRenderingContext2D, layout: Layout, session: 
   const width = Math.max(...lines.map((line) => ctx.measureText(line).width)) + pad * 2;
 
   ctx.fillStyle = PANEL;
-  roundRect(ctx, pad, pad, width, lineHeight * lines.length + pad, size * 0.4);
+  roundRect(ctx, left, top, width, lineHeight * lines.length + pad, size * 0.4);
   ctx.fill();
 
   lines.forEach((line, i) => {
     // The clock turns amber under ten seconds - the only warning there is.
     const urgent = i === 2 && session.remainingMs < 10_000;
     ctx.fillStyle = urgent ? ACCENT : INK;
-    ctx.fillText(line, pad * 2, pad * 1.5 + i * lineHeight);
+    ctx.fillText(line, left + pad, top + pad * 0.9 + i * lineHeight);
   });
 
   drawLives(ctx, layout, session, size, pad);
@@ -57,14 +59,16 @@ function drawLives(
   const text = `x${Math.max(0, session.run.lives)}`;
   ctx.font = `600 ${size}px system-ui, sans-serif`;
   const width = ctx.measureText(text).width + size * 2.2;
+  const right = layout.width - pad - layout.insets.right;
+  const top = pad + layout.insets.top;
 
   ctx.fillStyle = PANEL;
-  roundRect(ctx, layout.width - pad - width, pad, width, size * 1.8, size * 0.4);
+  roundRect(ctx, right - width, top, width, size * 1.8, size * 0.4);
   ctx.fill();
 
   // A little bone glyph rather than loading a sprite into screen space.
-  const boneX = layout.width - pad - width + size * 0.8;
-  const boneY = pad + size * 0.9;
+  const boneX = right - width + size * 0.8;
+  const boneY = top + size * 0.9;
   ctx.fillStyle = '#fbe6c0';
   ctx.fillRect(boneX - size * 0.35, boneY - size * 0.1, size * 0.7, size * 0.2);
   for (const dx of [-size * 0.4, size * 0.4]) {
@@ -76,7 +80,7 @@ function drawLives(
   }
 
   ctx.fillStyle = INK;
-  ctx.fillText(text, boneX + size * 0.7, pad + size * 0.4);
+  ctx.fillText(text, boneX + size * 0.7, top + size * 0.4);
 }
 
 /** The virtual buttons. Only drawn once the player has actually used touch. */
