@@ -57,6 +57,9 @@ export const SHAPES: readonly TileShape[] = [
  * rises and `L` lowers; `a`/`b` and `c`/`d` are the two halves of the gentle
  * slopes, read left to right.
  */
+/** Shape id of the one-way platform. You can see under it, so it buries nothing. */
+export const ONE_WAY_SHAPE = 9;
+
 export const TILE_CHARS: Readonly<Record<string, number>> = {
   '#': 1,
   '/': 2,

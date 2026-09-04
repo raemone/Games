@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "roxy-run",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "games/roxy-run", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

@@ -19,13 +19,29 @@ export const PHYS = {
   jumpForce: 6.5,
   /** Releasing jump early clips upward speed to this. */
   jumpCut: 4,
-  slopeFactor: 0.125,
+  /**
+   * Gentler than the Mega Drive's 0.125. At that value the downhill pull
+   * (0.088/frame on a 45 degree slope) beats acceleration (0.047), so Roxy
+   * could not walk up any hill from a standstill - she just slid back down,
+   * which reads as a broken game rather than as momentum. At 0.09 the 22.5
+   * degree slopes are walkable from rest and the 45 degree ones still demand
+   * a run-up, which is the lesson the level design is built around.
+   */
+  slopeFactor: 0.09,
   slopeRollUp: 0.078125,
   slopeRollDown: 0.3125,
   rollFriction: 0.0234375,
   rollDecel: 0.125,
   /** Below this ground speed on a steep slope, Roxy slips off. */
   slipSpeed: 2.5,
+  /**
+   * How steep counts as slippable, as |sin(angle)|. Deliberately above the
+   * 0.707 of a 45 degree ramp - the steepest tile in the set - because a slope
+   * you can see is climbable but that silently locks your controls is the most
+   * confusing thing a platformer can do to a child. It guards steeper terrain
+   * if any is ever added.
+   */
+  slipSteepness: 0.75,
   slipLockFrames: 30,
   maxSpeed: 16,
   /** Rolling only starts above this speed, so you cannot roll on the spot. */
@@ -261,7 +277,7 @@ function moveAlongGround(body: Body, map: TileMap): void {
 function slipCheck(body: Body): void {
   if (!body.grounded) return;
   const steepness = Math.abs(Math.sin(body.angle));
-  if (steepness <= 0.7 || Math.abs(body.gsp) >= PHYS.slipSpeed) return;
+  if (steepness <= PHYS.slipSteepness || Math.abs(body.gsp) >= PHYS.slipSpeed) return;
 
   body.gsp = 0;
   body.controlLock = PHYS.slipLockFrames;
@@ -321,7 +337,8 @@ function stepAir(body: Body, input: PhysicsInput, map: TileMap): void {
 /** Look for ground beneath a falling body and stick to it. */
 function land(body: Body, map: TileMap): void {
   const reach = Math.max(4, Math.min(body.ysp + 4, 16));
-  const hit = bestFloor(body, map, reach);
+  // No step-up in the air: falling past a ledge must not snap the body onto it.
+  const hit = bestFloor(body, map, reach, 0);
   if (!hit) return;
 
   body.y = hit.y - body.heightRadius;
@@ -336,7 +353,11 @@ function land(body: Body, map: TileMap): void {
 /** Keep a grounded body glued to the surface, or let it fall off a ledge. */
 function snapToFloor(body: Body, map: TileMap): void {
   const reach = Math.min(4 + Math.abs(body.gsp), 14);
-  const hit = bestFloor(body, map, reach);
+  // Step-up scales with speed: a 45 degree ramp rises a pixel for every pixel
+  // travelled, so the faster you run the further up the sensor must reach. It
+  // is capped below a full tile so a wall stays a wall.
+  const stepUp = Math.min(Math.abs(body.gsp) + 4, 14);
+  const hit = bestFloor(body, map, reach, stepUp);
   if (!hit) {
     body.grounded = false;
     body.xsp = body.gsp * Math.cos(body.angle);
@@ -348,11 +369,15 @@ function snapToFloor(body: Body, map: TileMap): void {
   body.angle = hit.angle;
 }
 
-/** Two ground sensors, one per edge; the nearer surface wins. */
-function bestFloor(body: Body, map: TileMap, reach: number) {
+/**
+ * Two ground sensors, one per edge; the nearer surface wins.
+ * `stepUp` is only non-zero while grounded, so terrain rising in front of the
+ * body is climbed rather than walked into.
+ */
+function bestFloor(body: Body, map: TileMap, reach: number, stepUp: number) {
   const sensorY = body.y + body.heightRadius;
-  const left = findFloor(map, body.x - body.widthRadius, sensorY, reach);
-  const right = findFloor(map, body.x + body.widthRadius, sensorY, reach);
+  const left = findFloor(map, body.x - body.widthRadius, sensorY, reach, stepUp);
+  const right = findFloor(map, body.x + body.widthRadius, sensorY, reach, stepUp);
   if (!left) return right;
   if (!right) return left;
   return left.distance <= right.distance ? left : right;

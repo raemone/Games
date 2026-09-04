@@ -51,21 +51,17 @@ export const EMPTY_SHAPE: TileShape = {
   isWall: false,
 };
 
-/** How far above a sensor the collision code will look when the sensor is buried. */
-const MAX_REGRESSION_TILES = 1;
+/**
+ * How far below a surface a sensor may sit and still be counted as standing on
+ * it. One tile: any deeper and the sensor belongs to the tile below.
+ */
+const MAX_BURIAL = TILE;
 
 function shapeAt(map: TileMap, tx: number, ty: number): TileShape | null {
   if (tx < 0 || tx >= map.width || ty < 0 || ty >= map.height) return null;
   const id = map.tiles[ty * map.width + tx];
   if (id === undefined || id === 0) return null;
   return map.shapes[id] ?? null;
-}
-
-/** Solid height of one tile column, 0 when there is nothing there. */
-function columnHeight(map: TileMap, tx: number, ty: number, col: number): number {
-  const shape = shapeAt(map, tx, ty);
-  if (!shape) return 0;
-  return shape.heights[col] ?? 0;
 }
 
 function columnOf(x: number): number {
@@ -75,73 +71,54 @@ function columnOf(x: number): number {
 /**
  * Cast a sensor downward from (x, y) looking for ground.
  *
- * `maxDistance` caps how far below the sensor a surface may be and still count,
- * which is what stops a body snapping down off a ledge.
+ * `maxDistance` caps how far below the sensor a surface may be and still
+ * count, which is what stops a body snapping down off a ledge.
+ *
+ * `stepUp` lets a grounded sensor also find ground *above* itself, which is
+ * what allows a ramp to be climbed at all: a foot planted exactly on flat
+ * ground would otherwise never see the slope rising in front of it, and the
+ * player would walk into the hill as though it were a wall. Airborne callers
+ * pass 0, so falling past a ledge never yanks the body up onto it.
  */
 export function findFloor(
   map: TileMap,
   x: number,
   y: number,
   maxDistance: number,
+  stepUp = 0,
   allowOneWay = true,
 ): FloorHit | null {
   if (x < 0 || x >= map.width * TILE) return null;
 
   const col = columnOf(x);
-  const startTy = Math.floor(y / TILE);
-
-  // The sensor's own tile first: the surface may be just below it, or the sensor
-  // may already be buried in it.
-  const here = shapeAt(map, Math.floor(x / TILE), startTy);
-  if (here && (allowOneWay || !here.oneWay)) {
-    const h = here.heights[col] ?? 0;
-    if (h > 0) {
-      const surfaceY = startTy * TILE + (TILE - h);
-      if (surfaceY >= y) {
-        return { y: surfaceY, distance: surfaceY - y, angle: here.angle };
-      }
-      // Buried. Walk up while the tile above is solid all the way through.
-      return regressUp(map, x, startTy, col, y, allowOneWay);
-    }
-  }
-
   const tx = Math.floor(x / TILE);
+  const startTy = Math.floor(y / TILE);
+  const firstTy = stepUp > 0 ? startTy - 1 : startTy;
   const lastTy = Math.floor((y + maxDistance) / TILE);
-  for (let ty = startTy + 1; ty <= lastTy; ty++) {
+
+  // Top down, so the highest reachable surface wins - that is what makes a
+  // body follow a slope up rather than staying on the flat beneath it.
+  for (let ty = firstTy; ty <= lastTy; ty++) {
     const shape = shapeAt(map, tx, ty);
     if (!shape) continue;
     if (shape.oneWay && !allowOneWay) continue;
-    const h = shape.heights[col] ?? 0;
-    if (h <= 0) continue;
-    const surfaceY = ty * TILE + (TILE - h);
+
+    const height = shape.heights[col] ?? 0;
+    if (height <= 0) continue;
+
+    const surfaceY = ty * TILE + (TILE - height);
     const distance = surfaceY - y;
+
+    // Two different allowances, and conflating them lets a body climb walls:
+    // within the sensor's own tile the sensor may simply be buried, but a
+    // surface in the tile *above* may only be reached by stepping up, and that
+    // is capped at roughly how far the body travels in a tick.
+    const allowance = ty < startTy ? stepUp : MAX_BURIAL;
+    if (distance < -allowance) continue;
     if (distance > maxDistance) return null;
     return { y: surfaceY, distance, angle: shape.angle };
   }
   return null;
-}
-
-function regressUp(
-  map: TileMap,
-  x: number,
-  startTy: number,
-  col: number,
-  sensorY: number,
-  allowOneWay: boolean,
-): FloorHit {
-  const tx = Math.floor(x / TILE);
-  let ty = startTy;
-  for (let step = 0; step < MAX_REGRESSION_TILES; step++) {
-    if (columnHeight(map, tx, ty - 1, col) < TILE) break;
-    ty--;
-  }
-  const shape = shapeAt(map, tx, ty) ?? EMPTY_SHAPE;
-  if (shape.oneWay && !allowOneWay) {
-    return { y: sensorY, distance: 0, angle: 0 };
-  }
-  const h = shape.heights[col] ?? 0;
-  const surfaceY = ty * TILE + (TILE - h);
-  return { y: surfaceY, distance: surfaceY - sensorY, angle: shape.angle };
 }
 
 /**

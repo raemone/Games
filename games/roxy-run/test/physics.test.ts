@@ -255,3 +255,73 @@ describe('obstacles', () => {
     expect(body.y - body.heightRadius).toBeGreaterThanOrEqual(16);
   });
 });
+
+describe('climbing', () => {
+  // Flat run-up, then a 45 degree ramp up to a shelf, exactly as a level joins
+  // a flat segment to a hill.
+  // Long flat run-up, a 45 degree ramp, then a long shelf. Both stretches have
+  // to be genuinely long or Roxy hits the level edge and the test reads that
+  // as a physics failure.
+  const RUN_UP = 24;
+  const SHELF = 60;
+  const RAMP = tileMap([
+    ' '.repeat(RUN_UP + SHELF + 3),
+    ' '.repeat(RUN_UP + SHELF + 3),
+    `${' '.repeat(RUN_UP + 2)}/${'#'.repeat(SHELF)}`,
+    `${' '.repeat(RUN_UP + 1)}/${'#'.repeat(SHELF + 1)}`,
+    `${' '.repeat(RUN_UP)}/${'#'.repeat(SHELF + 2)}`,
+    '#'.repeat(RUN_UP + SHELF + 3),
+    '#'.repeat(RUN_UP + SHELF + 3),
+  ]);
+
+  it('runs up a ramp instead of stopping dead at the bottom of it', () => {
+    const body = createBody(24, 40);
+    for (let i = 0; i < 20; i++) step(body, NO_INPUT, RAMP);
+    expect(body.grounded).toBe(true);
+    const startY = body.y;
+
+    run(body, 240, { right: true }, RAMP);
+
+    // Up the ramp and onto the shelf: higher than it started, and still moving.
+    expect(body.y).toBeLessThan(startY - 32);
+    expect(body.x).toBeGreaterThan((RUN_UP + 6) * 16);
+    expect(Math.abs(body.gsp)).toBeGreaterThan(1);
+  });
+
+  it('keeps some speed up the ramp rather than grinding to a halt', () => {
+    const body = createBody(24, 40);
+    for (let i = 0; i < 20; i++) step(body, NO_INPUT, RAMP);
+    run(body, 200, { right: true }, RAMP);
+    expect(body.gsp).toBeGreaterThan(3);
+  });
+
+  it('is still stopped by a wall two tiles high', () => {
+    const wall = tileMap([
+      '     #    ',
+      '     #    ',
+      '##########',
+    ]);
+    const body = createBody(16, 16);
+    for (let i = 0; i < 10; i++) step(body, NO_INPUT, wall);
+    const floorY = body.y;
+
+    run(body, 400, { right: true }, wall);
+    expect(body.x).toBeLessThanOrEqual(5 * 16);
+    // Crucially it must not have climbed the wall a tile at a time.
+    expect(body.y).toBeCloseTo(floorY, 1);
+  });
+
+  it('steps up a shallow lip without needing a jump', () => {
+    const lip = tileMap([
+      '          ',
+      '     -----',
+      '##########',
+    ]);
+    const body = createBody(16, 16);
+    for (let i = 0; i < 10; i++) step(body, NO_INPUT, lip);
+    const floorY = body.y;
+    run(body, 200, { right: true }, lip);
+    expect(body.x).toBeGreaterThan(7 * 16);
+    expect(body.y).toBeLessThan(floorY);
+  });
+});
