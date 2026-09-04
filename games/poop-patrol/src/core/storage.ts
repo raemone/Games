@@ -15,6 +15,9 @@
 import { isDayKey } from './dates';
 import {
   DEFAULT_DOG_NAME,
+  MAX_REWARDS,
+  MAX_REWARD_BLURB,
+  MAX_REWARD_NAME,
   DEFAULT_WEEKLY_GOAL,
   MAX_NAME_LENGTH,
   MAX_PEOPLE,
@@ -27,8 +30,14 @@ import {
   firstColor,
   firstEmoji,
 } from './model';
-import type { Claim, Log, Person, PersonId, SaveData, Settings } from './model';
-import { MAX_PRICE, MIN_PRICE, POINTS_REWARDS, REWARDS, defaultPrices } from './rewards';
+import type { Claim, Log, Person, PersonId, Reward, SaveData, Settings } from './model';
+import {
+  DEFAULT_REWARDS,
+  MAX_PRICE,
+  MAX_STREAK_DAYS,
+  MIN_PRICE,
+  MIN_STREAK_DAYS,
+} from './rewards';
 
 const KEY = 'poop-patrol:save';
 export const SAVE_VERSION = 2;
@@ -39,6 +48,8 @@ export function defaultSave(): SaveData {
     people: [],
     nextPersonId: 1,
     log: {},
+    rewards: DEFAULT_REWARDS.map((reward) => ({ ...reward })),
+    nextRewardId: 1,
     claims: [],
     settings: defaultSettings(),
   };
@@ -129,7 +140,6 @@ function migrateLog(raw: unknown, knownIds: ReadonlySet<PersonId>): Log {
 function migrateClaims(raw: unknown, knownIds: ReadonlySet<PersonId>): readonly Claim[] {
   if (!Array.isArray(raw)) return [];
 
-  const rewardIds = new Set(REWARDS.map((reward) => reward.id));
   const claims: Claim[] = [];
   const seen = new Set<string>();
 
@@ -141,7 +151,10 @@ function migrateClaims(raw: unknown, knownIds: ReadonlySet<PersonId>): readonly 
     const rewardId = typeof record.rewardId === 'string' ? record.rewardId : '';
     const day = record.day;
 
-    if (!knownIds.has(personId) || !rewardIds.has(rewardId) || !isDayKey(day)) continue;
+    // The reward id is deliberately NOT checked against the current list: a
+    // claim spent real points, and dropping it because the reward was later
+    // removed would hand those points back by accident.
+    if (!knownIds.has(personId) || rewardId.length === 0 || !isDayKey(day)) continue;
 
     // One claim per person, reward and day; a duplicate is a double-tap.
     const key = `${personId}|${rewardId}|${day}`;
@@ -156,19 +169,60 @@ function migrateClaims(raw: unknown, knownIds: ReadonlySet<PersonId>): readonly 
   return claims;
 }
 
-/** Unknown reward ids are dropped and missing ones fall back to the default. */
-function migratePrices(raw: unknown): Record<string, number> {
-  const prices = defaultPrices();
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return prices;
+/**
+ * A save from before the family could edit rewards has no list of its own, so
+ * it is seeded with the defaults - and any price it had overridden under the
+ * old `settings.rewardPrices` is carried across, so nobody's tuning is lost.
+ */
+function seedRewards(legacyPrices: unknown): Reward[] {
+  const overrides =
+    typeof legacyPrices === 'object' && legacyPrices !== null && !Array.isArray(legacyPrices)
+      ? (legacyPrices as Record<string, unknown>)
+      : {};
 
-  const known = new Set(POINTS_REWARDS.map((reward) => reward.id));
-  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!known.has(id)) continue;
-    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
-    prices[id] = clamp(Math.round(value), MIN_PRICE, MAX_PRICE);
+  return DEFAULT_REWARDS.map((reward) => {
+    const stored = overrides[reward.id];
+    if (reward.kind !== 'points' || typeof stored !== 'number' || !Number.isFinite(stored)) {
+      return { ...reward };
+    }
+    return { ...reward, price: clamp(Math.round(stored), MIN_PRICE, MAX_PRICE) };
+  });
+}
+
+function migrateRewards(raw: unknown, legacyPrices: unknown): Reward[] {
+  if (!Array.isArray(raw)) return seedRewards(legacyPrices);
+
+  const rewards: Reward[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of raw) {
+    if (rewards.length >= MAX_REWARDS) break;
+    if (typeof entry !== 'object' || entry === null) continue;
+
+    const record = entry as Record<string, unknown>;
+    const id = typeof record.id === 'string' ? record.id.trim() : '';
+    if (id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+
+    const kind = record.kind === 'streak' ? 'streak' : 'points';
+
+    rewards.push({
+      id,
+      emoji: typeof record.emoji === 'string' && record.emoji.length > 0 ? record.emoji : '🎁',
+      name: text(record.name, 'A reward', MAX_REWARD_NAME),
+      blurb: typeof record.blurb === 'string' ? record.blurb.trim().slice(0, MAX_REWARD_BLURB) : '',
+      kind,
+      price: kind === 'points' ? clamp(Math.round(num(record.price, 100)), MIN_PRICE, MAX_PRICE) : 0,
+      streakDays:
+        kind === 'streak'
+          ? clamp(Math.round(num(record.streakDays, 100)), MIN_STREAK_DAYS, MAX_STREAK_DAYS)
+          : 0,
+      archived: bool(record.archived, false),
+    });
   }
 
-  return prices;
+  // An empty or unreadable list would leave the family with no shop at all.
+  return rewards.length > 0 ? rewards : seedRewards(legacyPrices);
 }
 
 function migrateSettings(raw: unknown): Settings {
@@ -185,7 +239,6 @@ function migrateSettings(raw: unknown): Settings {
     ),
     soundOn: bool(record.soundOn, base.soundOn),
     confettiOn: bool(record.confettiOn, base.confettiOn),
-    rewardPrices: migratePrices(record.rewardPrices),
   };
 }
 
@@ -201,14 +254,30 @@ export function migrate(raw: unknown): SaveData {
   const { people, nextPersonId } = migratePeople(input.people);
   const knownIds = new Set(people.map((person) => person.id));
 
+  const settings = migrateSettings(input.settings);
+  const legacyPrices =
+    typeof input.settings === 'object' && input.settings !== null
+      ? (input.settings as Record<string, unknown>).rewardPrices
+      : undefined;
+  const rewards = migrateRewards(input.rewards, legacyPrices);
+
+  // Custom ids look like 'r<n>'; repair a counter that would reuse one.
+  let highestRewardId = 0;
+  for (const reward of rewards) {
+    const numbered = /^r(\d+)$/.exec(reward.id);
+    if (numbered?.[1]) highestRewardId = Math.max(highestRewardId, Number(numbered[1]));
+  }
+
   return {
     version: SAVE_VERSION,
     people,
     // Repair a counter that would hand out an id already in use.
     nextPersonId: Math.max(nextPersonId, Math.floor(num(input.nextPersonId, 1)), 1),
     log: migrateLog(input.log, knownIds),
+    rewards,
+    nextRewardId: Math.max(highestRewardId + 1, Math.floor(num(input.nextRewardId, 1)), 1),
     claims: migrateClaims(input.claims, knownIds),
-    settings: migrateSettings(input.settings),
+    settings,
   };
 }
 

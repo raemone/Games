@@ -196,16 +196,25 @@ describe('migrating claims', () => {
     ]);
   });
 
-  it('drops claims naming a person or a reward that does not exist', () => {
+  it('drops claims naming a person who does not exist, or a day that is not one', () => {
     const migrated = migrate({
       people: [{ id: 'p1', name: 'Ana' }],
       claims: [
         { personId: 'ghost', rewardId: 'screen-hour', day: '2026-09-01', cost: 100 },
-        { personId: 'p1', rewardId: 'a-pony', day: '2026-09-01', cost: 100 },
         { personId: 'p1', rewardId: 'screen-hour', day: 'never', cost: 100 },
       ],
     });
     expect(migrated.claims).toEqual([]);
+  });
+
+  it('keeps a claim for a reward the family has since removed', () => {
+    // Rewards are editable now, so an unknown id means "deleted", not
+    // "corrupt". The points were spent; refunding them silently would be worse.
+    const migrated = migrate({
+      people: [{ id: 'p1', name: 'Ana' }],
+      claims: [{ personId: 'p1', rewardId: 'a-pony', day: '2026-09-01', cost: 100 }],
+    });
+    expect(migrated.claims).toHaveLength(1);
   });
 
   it('de-duplicates a double-tapped claim', () => {
@@ -227,36 +236,101 @@ describe('migrating claims', () => {
   });
 });
 
-describe('migrating reward prices', () => {
-  it('fills in the built-in defaults when settings say nothing', () => {
-    expect(migrate({}).settings.rewardPrices).toEqual({
-      'screen-hour': 100,
-      'chick-fil-a': 400,
-      'arcade-basement': 800,
+describe('migrating the reward list', () => {
+  it('seeds the defaults for a save that has never had one', () => {
+    const migrated = migrate({ people: [] });
+    expect(migrated.rewards.map((reward) => reward.id)).toEqual([
+      'screen-hour',
+      'chick-fil-a',
+      'arcade-basement',
+      'cellphone',
+      'switch-2',
+    ]);
+  });
+
+  it("carries an older save's tuned prices across into the seeded list", () => {
+    // Before rewards were editable, a custom price lived in settings. That
+    // tuning must survive the move rather than silently resetting.
+    const migrated = migrate({ settings: { rewardPrices: { 'screen-hour': 250 } } });
+    expect(migrated.rewards.find((reward) => reward.id === 'screen-hour')?.price).toBe(250);
+    expect(migrated.rewards.find((reward) => reward.id === 'chick-fil-a')?.price).toBe(400);
+  });
+
+  it('clamps a carried-over price', () => {
+    const migrated = migrate({ settings: { rewardPrices: { 'screen-hour': -10 } } });
+    expect(migrated.rewards.find((reward) => reward.id === 'screen-hour')?.price).toBe(1);
+  });
+
+  it('keeps a stored list, custom rewards and all', () => {
+    const migrated = migrate({
+      rewards: [
+        { id: 'r1', emoji: '🍦', name: 'Ice cream', blurb: 'From the van.', kind: 'points', price: 150 },
+      ],
     });
+    expect(migrated.rewards).toEqual([
+      {
+        id: 'r1',
+        emoji: '🍦',
+        name: 'Ice cream',
+        blurb: 'From the van.',
+        kind: 'points',
+        price: 150,
+        streakDays: 0,
+        archived: false,
+      },
+    ]);
   });
 
-  it('honours a stored override and keeps the rest at default', () => {
-    const prices = migrate({ settings: { rewardPrices: { 'screen-hour': 250 } } }).settings.rewardPrices;
-    expect(prices['screen-hour']).toBe(250);
-    expect(prices['chick-fil-a']).toBe(400);
+  it('repairs a counter that would reuse an id', () => {
+    const migrated = migrate({ rewards: [{ id: 'r7', name: 'Thing', kind: 'points', price: 10 }] });
+    expect(migrated.nextRewardId).toBe(8);
   });
 
-  it('clamps and cleans what it finds', () => {
-    const prices = migrate({
-      settings: { rewardPrices: { 'screen-hour': -5, 'chick-fil-a': 1e9, 'arcade-basement': 'free' } },
-    }).settings.rewardPrices;
-    expect(prices['screen-hour']).toBe(1);
-    expect(prices['chick-fil-a']).toBe(100000);
-    expect(prices['arcade-basement']).toBe(800);
+  it('cleans what it finds', () => {
+    const migrated = migrate({
+      rewards: [
+        { id: 'r1', name: '   ', kind: 'points', price: 1e9 },
+        { id: 'r2', name: 'Streaky', kind: 'streak', streakDays: -4 },
+      ],
+    });
+    expect(migrated.rewards[0]).toMatchObject({ name: 'A reward', price: 100000, emoji: '🎁' });
+    expect(migrated.rewards[1]).toMatchObject({ kind: 'streak', streakDays: 1, price: 0 });
   });
 
-  it('drops a price for a reward that is not for sale, or does not exist', () => {
-    const prices = migrate({
-      settings: { rewardPrices: { 'switch-2': 5, nonsense: 5 } },
-    }).settings.rewardPrices;
-    expect(prices['switch-2']).toBeUndefined();
-    expect(prices['nonsense']).toBeUndefined();
+  it('de-duplicates reward ids and caps the list', () => {
+    const dupes = migrate({
+      rewards: [
+        { id: 'r1', name: 'One', kind: 'points', price: 10 },
+        { id: 'r1', name: 'Impostor', kind: 'points', price: 10 },
+      ],
+    });
+    expect(dupes.rewards).toHaveLength(1);
+    expect(dupes.rewards[0]?.name).toBe('One');
+
+    const many = Array.from({ length: 40 }, (_unused, index) => ({
+      id: `r${String(index + 1)}`,
+      name: `R${String(index)}`,
+      kind: 'points',
+      price: 10,
+    }));
+    expect(migrate({ rewards: many }).rewards).toHaveLength(20);
+  });
+
+  it('falls back to the defaults rather than leaving no shop at all', () => {
+    expect(migrate({ rewards: [] }).rewards).toHaveLength(5);
+    expect(migrate({ rewards: 'nonsense' }).rewards).toHaveLength(5);
+    expect(migrate({ rewards: [{ nonsense: true }] }).rewards).toHaveLength(5);
+  });
+
+  it('keeps a claim whose reward is no longer in the list', () => {
+    // The points were really spent. Dropping the claim would refund them.
+    const migrated = migrate({
+      people: [{ id: 'p1', name: 'Ana' }],
+      rewards: [{ id: 'r1', name: 'Kept', kind: 'points', price: 10 }],
+      claims: [{ personId: 'p1', rewardId: 'long-gone', day: '2026-09-01', cost: 400 }],
+    });
+    expect(migrated.claims).toHaveLength(1);
+    expect(migrated.claims[0]?.cost).toBe(400);
   });
 });
 

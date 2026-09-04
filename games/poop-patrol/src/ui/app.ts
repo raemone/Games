@@ -18,7 +18,7 @@ import { MAX_PER_DAY, countFor, personById } from '../core/model';
 import type { Person, PersonId, SaveData, Settings } from '../core/model';
 import { rankFor } from '../core/ranks';
 import { reduce } from '../core/reducer';
-import type { Action } from '../core/reducer';
+import type { Action, RewardDraft } from '../core/reducer';
 import { careerPoints, familyGoalProgress } from '../core/scoring';
 import { affordableIds, newlyAffordable, rewardById } from '../core/rewards';
 import { clear as clearStorage, defaultSave, importJson, load, save as persist } from '../core/storage';
@@ -59,6 +59,7 @@ export class App {
   private sheet: Sheet = 'none';
   private sheetPerson: PersonId | null = null;
   private editingPerson: PersonId | null = null;
+  private editingReward: string | null = null;
   private readonly undoStack: UndoEntry[] = [];
   private undoTimer = 0;
 
@@ -265,7 +266,11 @@ export class App {
 
     // Something new they can actually spend on is the most motivating news
     // there is, so it gets a card of its own.
-    for (const reward of newlyAffordable(affordableBefore, affordableIds(this.save, person.id, this.today))) {
+    for (const reward of newlyAffordable(
+      this.save,
+      affordableBefore,
+      affordableIds(this.save, person.id, this.today),
+    )) {
       this.effects.toast(reward.emoji, `${person.name} can claim ${reward.name}`, reward.blurb);
     }
 
@@ -293,7 +298,7 @@ export class App {
   // ---------- rewards ----------
 
   claimReward(person: Person, rewardId: string): void {
-    const reward = rewardById(rewardId);
+    const reward = rewardById(this.save, rewardId);
     const before = this.save;
     this.commit({ kind: 'claimReward', rewardId, personId: person.id });
     if (this.save === before) return;
@@ -308,7 +313,7 @@ export class App {
   }
 
   unclaimReward(person: Person, rewardId: string): void {
-    const reward = rewardById(rewardId);
+    const reward = rewardById(this.save, rewardId);
     if (reward && !window.confirm(`Give back ${person.name}'s ${reward.name}?`)) return;
 
     const before = this.save;
@@ -318,6 +323,37 @@ export class App {
     this.sound.undo();
     this.announce(`${person.name} gave back ${reward?.name ?? 'a reward'}`);
     this.render();
+  }
+
+  addReward(draft: RewardDraft): void {
+    this.commit({ kind: 'addReward', draft });
+    this.editingReward = null;
+    this.announce(`${draft.name} added to the rewards`);
+    this.render();
+  }
+
+  saveRewardEdit(rewardId: string, draft: RewardDraft): void {
+    this.commit({ kind: 'editReward', rewardId, draft });
+    this.editingReward = null;
+    this.render();
+  }
+
+  editReward(rewardId: string | null): void {
+    this.editingReward = rewardId;
+    this.render();
+  }
+
+  archiveReward(rewardId: string, archived: boolean): void {
+    const reward = rewardById(this.save, rewardId);
+    if (archived && reward && !window.confirm(`Remove ${reward.name} from the rewards?`)) return;
+
+    this.commit({ kind: 'archiveReward', rewardId, archived });
+    if (this.editingReward === rewardId) this.editingReward = null;
+    this.render();
+  }
+
+  get rewardBeingEdited(): string | null {
+    return this.editingReward;
   }
 
   openRewards(): void {

@@ -14,7 +14,6 @@
  */
 
 import type { DayKey } from './dates';
-import { defaultPrices } from './rewards';
 
 export type PersonId = string;
 
@@ -37,8 +36,34 @@ export interface Settings {
   readonly weeklyGoal: number;
   readonly soundOn: boolean;
   readonly confettiOn: boolean;
-  /** Points price per reward id, overriding the built-in default. */
-  readonly rewardPrices: Readonly<Record<string, number>>;
+}
+
+export type RewardKind = 'points' | 'streak';
+
+/**
+ * Something the work buys. The family edits these, so they are stored rather
+ * than baked into the code.
+ *
+ * Flat rather than a discriminated union: `kind` says which of `price` and
+ * `streakDays` is meaningful, and the other stays 0. A union reads better in
+ * the logic but is painful to edit through a form, and this record is one a
+ * parent types into.
+ */
+export interface Reward {
+  readonly id: string;
+  readonly emoji: string;
+  readonly name: string;
+  readonly blurb: string;
+  readonly kind: RewardKind;
+  /** Points kind: what it costs. */
+  readonly price: number;
+  /** Streak kind: the run needed, and it can only ever be won once. */
+  readonly streakDays: number;
+  /**
+   * Removed rewards are archived, never deleted: a claim already made spent
+   * real points, and dropping it would hand those points back by accident.
+   */
+  readonly archived: boolean;
 }
 
 /**
@@ -60,11 +85,17 @@ export interface SaveData {
   /** Ids come from this counter and are never reused, even after a delete. */
   readonly nextPersonId: number;
   readonly log: Log;
+  readonly rewards: readonly Reward[];
+  /** Ids come from this counter and are never reused. */
+  readonly nextRewardId: number;
   readonly claims: readonly Claim[];
   readonly settings: Settings;
 }
 
 export const MAX_PER_DAY = 99;
+export const MAX_REWARDS = 20;
+export const MAX_REWARD_NAME = 28;
+export const MAX_REWARD_BLURB = 60;
 export const MAX_PEOPLE = 12;
 export const MAX_NAME_LENGTH = 16;
 export const MIN_WEEKLY_GOAL = 1;
@@ -129,7 +160,6 @@ export function defaultSettings(): Settings {
     weeklyGoal: DEFAULT_WEEKLY_GOAL,
     soundOn: true,
     confettiOn: true,
-    rewardPrices: defaultPrices(),
   };
 }
 
@@ -159,6 +189,15 @@ export function activeDaysFor(log: Log, personId: PersonId): readonly DayKey[] {
   // 'YYYY-MM-DD' sorts lexicographically in calendar order, so a plain sort is
   // already chronological.
   return days.sort();
+}
+
+export const REWARD_EMOJI: readonly string[] = [
+  '📺', '🎮', '🕹️', '📱', '🍗', '🍕', '🍦', '🍪', '🎬', '🎟️',
+  '⚽', '🏊', '🚲', '🧸', '📚', '🎨', '💸', '🛌', '🐾', '🎉',
+];
+
+export function firstRewardEmoji(): string {
+  return REWARD_EMOJI[0] ?? '🎁';
 }
 
 export function personById(people: readonly Person[], id: PersonId): Person | null {

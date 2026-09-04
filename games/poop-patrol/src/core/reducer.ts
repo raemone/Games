@@ -11,6 +11,9 @@ import { compareDays } from './dates';
 import type { DayKey } from './dates';
 import {
   MAX_NAME_LENGTH,
+  MAX_REWARDS,
+  MAX_REWARD_BLURB,
+  MAX_REWARD_NAME,
   MAX_PEOPLE,
   MAX_PER_DAY,
   MAX_WEEKLY_GOAL,
@@ -20,8 +23,25 @@ import {
   firstColor,
   firstEmoji,
 } from './model';
-import type { Claim, Log, Person, PersonId, SaveData, Settings } from './model';
-import { MAX_PRICE, MIN_PRICE, canClaim, costOf } from './rewards';
+import type { Claim, Log, Person, PersonId, Reward, RewardKind, SaveData, Settings } from './model';
+import {
+  MAX_PRICE,
+  MAX_STREAK_DAYS,
+  MIN_PRICE,
+  MIN_STREAK_DAYS,
+  canClaim,
+  costOf,
+} from './rewards';
+
+/** What a parent types into the reward form. */
+export interface RewardDraft {
+  readonly emoji: string;
+  readonly name: string;
+  readonly blurb: string;
+  readonly kind: RewardKind;
+  readonly price: number;
+  readonly streakDays: number;
+}
 
 export type Action =
   | { readonly kind: 'adjustCount'; readonly day: DayKey; readonly personId: PersonId; readonly delta: number }
@@ -36,6 +56,9 @@ export type Action =
     }
   | { readonly kind: 'retirePerson'; readonly personId: PersonId; readonly retired: boolean }
   | { readonly kind: 'deletePerson'; readonly personId: PersonId }
+  | { readonly kind: 'addReward'; readonly draft: RewardDraft }
+  | { readonly kind: 'editReward'; readonly rewardId: string; readonly draft: RewardDraft }
+  | { readonly kind: 'archiveReward'; readonly rewardId: string; readonly archived: boolean }
   | { readonly kind: 'claimReward'; readonly rewardId: string; readonly personId: PersonId }
   | { readonly kind: 'unclaimReward'; readonly rewardId: string; readonly personId: PersonId }
   | { readonly kind: 'setSettings'; readonly settings: Settings }
@@ -43,16 +66,6 @@ export type Action =
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
-}
-
-/** Prices are typed by a parent, so every one of them is clamped. */
-function cleanPrices(prices: Readonly<Record<string, number>>): Record<string, number> {
-  const cleaned: Record<string, number> = {};
-  for (const [id, value] of Object.entries(prices)) {
-    if (!Number.isFinite(value)) continue;
-    cleaned[id] = clamp(Math.round(value), MIN_PRICE, MAX_PRICE);
-  }
-  return cleaned;
 }
 
 function cleanName(name: string): string {
@@ -158,6 +171,58 @@ function deletePerson(save: SaveData, personId: PersonId): SaveData {
   };
 }
 
+/** Everything a parent typed, clamped into something the app can live with. */
+function cleanDraft(draft: RewardDraft, id: string): Reward | null {
+  const name = draft.name.trim().slice(0, MAX_REWARD_NAME);
+  if (name.length === 0) return null;
+
+  const points = draft.kind === 'points';
+  return {
+    id,
+    emoji: draft.emoji.trim().length > 0 ? draft.emoji.trim() : '🎁',
+    name,
+    blurb: draft.blurb.trim().slice(0, MAX_REWARD_BLURB),
+    kind: draft.kind,
+    price: points ? clamp(Math.round(draft.price), MIN_PRICE, MAX_PRICE) : 0,
+    streakDays: points ? 0 : clamp(Math.round(draft.streakDays), MIN_STREAK_DAYS, MAX_STREAK_DAYS),
+    archived: false,
+  };
+}
+
+function addReward(save: SaveData, draft: RewardDraft): SaveData {
+  if (save.rewards.length >= MAX_REWARDS) return save;
+
+  const reward = cleanDraft(draft, `r${String(save.nextRewardId)}`);
+  if (!reward) return save;
+
+  return { ...save, rewards: [...save.rewards, reward], nextRewardId: save.nextRewardId + 1 };
+}
+
+function editReward(save: SaveData, rewardId: string, draft: RewardDraft): SaveData {
+  const existing = save.rewards.find((reward) => reward.id === rewardId);
+  if (!existing) return save;
+
+  const cleaned = cleanDraft(draft, rewardId);
+  if (!cleaned) return save;
+
+  // Editing never un-archives; that is what the archive action is for.
+  const updated: Reward = { ...cleaned, archived: existing.archived };
+  return { ...save, rewards: save.rewards.map((reward) => (reward.id === rewardId ? updated : reward)) };
+}
+
+/**
+ * Removing a reward archives it rather than deleting it. A claim already made
+ * spent real points, and losing the reward it points at would quietly hand
+ * those points back.
+ */
+function archiveReward(save: SaveData, rewardId: string, archived: boolean): SaveData {
+  if (!save.rewards.some((reward) => reward.id === rewardId)) return save;
+  return {
+    ...save,
+    rewards: save.rewards.map((reward) => (reward.id === rewardId ? { ...reward, archived } : reward)),
+  };
+}
+
 /** Hand a reward over. Refused unless it is claimable today. */
 function claimReward(save: SaveData, personId: PersonId, rewardId: string, today: DayKey): SaveData {
   if (!canClaim(save, personId, today, rewardId)) return save;
@@ -196,6 +261,12 @@ export function reduce(save: SaveData, action: Action, today: DayKey): SaveData 
       return retirePerson(save, action.personId, action.retired);
     case 'deletePerson':
       return deletePerson(save, action.personId);
+    case 'addReward':
+      return addReward(save, action.draft);
+    case 'editReward':
+      return editReward(save, action.rewardId, action.draft);
+    case 'archiveReward':
+      return archiveReward(save, action.rewardId, action.archived);
     case 'claimReward':
       return claimReward(save, action.personId, action.rewardId, today);
     case 'unclaimReward':
@@ -207,7 +278,6 @@ export function reduce(save: SaveData, action: Action, today: DayKey): SaveData 
           ...action.settings,
           dogName: cleanName(action.settings.dogName) || save.settings.dogName,
           weeklyGoal: clamp(Math.round(action.settings.weeklyGoal), MIN_WEEKLY_GOAL, MAX_WEEKLY_GOAL),
-          rewardPrices: cleanPrices(action.settings.rewardPrices),
         },
       };
     case 'replaceAll':

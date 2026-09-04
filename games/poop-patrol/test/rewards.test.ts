@@ -1,24 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { addDays } from '../src/core/dates';
-import { defaultSettings } from '../src/core/model';
 import type { Claim, SaveData } from '../src/core/model';
 import { reduce } from '../src/core/reducer';
 import { careerPoints } from '../src/core/scoring';
 import {
-  MAX_PRICE,
-  REWARDS,
+  DEFAULT_REWARDS,
+  MAX_STREAK_DAYS,
+  activeRewards,
   affordableIds,
   canClaim,
   newlyAffordable,
   pointsBalance,
   pointsSpent,
-  priceOf,
   readyCount,
   rewardById,
   rewardStatus,
   rewardStatuses,
 } from '../src/core/rewards';
-import { logFor, person, saveWith } from './helpers';
+import { logFor, person, saveWith, withPrice } from './helpers';
 
 const TODAY = '2026-09-04';
 
@@ -37,26 +36,22 @@ function saveWithStreak(days: number, claims: readonly Claim[] = []): SaveData {
   return saveWith([person('p1', 'Mila')], run(days), 25, claims);
 }
 
-function withPrices(save: SaveData, prices: Record<string, number>): SaveData {
-  return { ...save, settings: { ...save.settings, rewardPrices: prices } };
-}
-
 function statusOf(save: SaveData, rewardId: string, today = TODAY) {
-  const reward = rewardById(rewardId);
+  const reward = rewardById(save, rewardId);
   if (!reward) throw new Error(`no such reward: ${rewardId}`);
   return rewardStatus(save, 'p1', today, reward);
 }
 
 describe('the reward ladder', () => {
   it('has unique ids', () => {
-    expect(new Set(REWARDS.map((reward) => reward.id)).size).toBe(REWARDS.length);
+    expect(new Set(DEFAULT_REWARDS.map((reward) => reward.id)).size).toBe(DEFAULT_REWARDS.length);
   });
 
   it('matches what the family agreed', () => {
     expect(
-      REWARDS.map((reward) =>
+      DEFAULT_REWARDS.map((reward) =>
         reward.kind === 'points'
-          ? [reward.id, 'points', reward.defaultPrice]
+          ? [reward.id, 'points', reward.price]
           : [reward.id, 'streak', reward.streakDays],
       ),
     ).toEqual([
@@ -69,7 +64,7 @@ describe('the reward ladder', () => {
   });
 
   it('gives every reward a name, an emoji and a blurb', () => {
-    for (const reward of REWARDS) {
+    for (const reward of DEFAULT_REWARDS) {
       expect(reward.name.length).toBeGreaterThan(0);
       expect(reward.emoji.length).toBeGreaterThan(0);
       expect(reward.blurb.length).toBeGreaterThan(0);
@@ -148,50 +143,13 @@ describe('buying with points', () => {
 });
 
 describe('prices', () => {
-  it('falls back to the built-in default when settings say nothing', () => {
-    const bare = { ...defaultSettings(), rewardPrices: {} };
-    const reward = rewardById('chick-fil-a');
-    expect(reward && priceOf(bare, reward)).toBe(400);
-  });
-
-  it('honours an override from settings', () => {
-    const save = withPrices(saveWithStreak(3), { 'screen-hour': 40 });
+  it('uses the price stored on the reward', () => {
+    const save = withPrice(saveWithStreak(3), 'screen-hour', 40);
     expect(statusOf(save, 'screen-hour')).toMatchObject({ price: 40, state: 'ready', balance: 45 });
   });
 
   it('is zero for a streak reward, which is not for sale', () => {
-    const reward = rewardById('switch-2');
-    expect(reward && priceOf(defaultSettings(), reward)).toBe(0);
-  });
-
-  it('clamps what a parent types', () => {
-    const save = saveWithStreak(5);
-    const cheap = reduce(
-      save,
-      { kind: 'setSettings', settings: { ...save.settings, rewardPrices: { 'screen-hour': -50 } } },
-      TODAY,
-    );
-    expect(cheap.settings.rewardPrices['screen-hour']).toBe(1);
-
-    const silly = reduce(
-      save,
-      { kind: 'setSettings', settings: { ...save.settings, rewardPrices: { 'screen-hour': 1e9 } } },
-      TODAY,
-    );
-    expect(silly.settings.rewardPrices['screen-hour']).toBe(MAX_PRICE);
-  });
-
-  it('drops a price that is not a number', () => {
-    const save = saveWithStreak(5);
-    const next = reduce(
-      save,
-      {
-        kind: 'setSettings',
-        settings: { ...save.settings, rewardPrices: { 'screen-hour': Number.NaN } },
-      },
-      TODAY,
-    );
-    expect(next.settings.rewardPrices['screen-hour']).toBeUndefined();
+    expect(statusOf(saveWithStreak(5), 'switch-2').price).toBe(0);
   });
 
   it('does not rewrite what a past claim cost', () => {
@@ -203,7 +161,7 @@ describe('prices', () => {
     );
     expect(bought.claims[0]?.cost).toBe(100);
 
-    const repriced = withPrices(bought, { 'screen-hour': 900 });
+    const repriced = withPrice(bought, 'screen-hour', 900);
     expect(pointsSpent(repriced.claims, 'p1')).toBe(100);
     expect(pointsBalance(repriced, 'p1')).toBe(0);
   });
@@ -324,16 +282,145 @@ describe('claiming through the reducer', () => {
   });
 });
 
+describe('managing the reward list', () => {
+  const draft = {
+    emoji: '🍦',
+    name: 'Ice cream',
+    blurb: 'From the van.',
+    kind: 'points' as const,
+    price: 150,
+    streakDays: 0,
+  };
+
+  it('adds a reward with a fresh id', () => {
+    const next = reduce(saveWithStreak(5), { kind: 'addReward', draft }, TODAY);
+    const added = next.rewards[next.rewards.length - 1];
+    expect(added).toMatchObject({ id: 'r1', name: 'Ice cream', kind: 'points', price: 150 });
+    expect(next.nextRewardId).toBe(2);
+  });
+
+  it('puts a new reward straight into the shop', () => {
+    const next = reduce(saveWithStreak(20), { kind: 'addReward', draft }, TODAY);
+    expect(activeRewards(next).map((reward) => reward.name)).toContain('Ice cream');
+    expect(statusOf(next, 'r1').state).toBe('ready');
+  });
+
+  it('never reuses an id', () => {
+    let save = reduce(saveWithStreak(5), { kind: 'addReward', draft }, TODAY);
+    save = reduce(save, { kind: 'archiveReward', rewardId: 'r1', archived: true }, TODAY);
+    save = reduce(save, { kind: 'addReward', draft }, TODAY);
+    expect(save.rewards.map((reward) => reward.id)).toContain('r2');
+  });
+
+  it('refuses a nameless reward', () => {
+    const save = saveWithStreak(5);
+    expect(reduce(save, { kind: 'addReward', draft: { ...draft, name: '   ' } }, TODAY)).toBe(save);
+  });
+
+  it('clamps a silly price or streak', () => {
+    const cheap = reduce(saveWithStreak(5), { kind: 'addReward', draft: { ...draft, price: -20 } }, TODAY);
+    expect(cheap.rewards[cheap.rewards.length - 1]?.price).toBe(1);
+
+    const long = reduce(
+      saveWithStreak(5),
+      { kind: 'addReward', draft: { ...draft, kind: 'streak', streakDays: 99999 } },
+      TODAY,
+    );
+    expect(long.rewards[long.rewards.length - 1]?.streakDays).toBe(MAX_STREAK_DAYS);
+  });
+
+  it('zeroes the field that does not apply to the kind', () => {
+    const streak = reduce(
+      saveWithStreak(5),
+      { kind: 'addReward', draft: { ...draft, kind: 'streak', price: 500, streakDays: 40 } },
+      TODAY,
+    );
+    expect(streak.rewards[streak.rewards.length - 1]).toMatchObject({ price: 0, streakDays: 40 });
+  });
+
+  it('stops at the maximum', () => {
+    let save = saveWithStreak(5);
+    for (let index = 0; index < 30; index += 1) {
+      save = reduce(save, { kind: 'addReward', draft: { ...draft, name: `R${String(index)}` } }, TODAY);
+    }
+    expect(save.rewards).toHaveLength(20);
+  });
+
+  it('edits a name and a price in place', () => {
+    const next = reduce(
+      saveWithStreak(5),
+      {
+        kind: 'editReward',
+        rewardId: 'screen-hour',
+        draft: { ...draft, name: 'Two hours of TV', price: 220 },
+      },
+      TODAY,
+    );
+    expect(rewardById(next, 'screen-hour')).toMatchObject({ name: 'Two hours of TV', price: 220 });
+    // The id is untouched, so claims already made still resolve.
+    expect(next.rewards).toHaveLength(DEFAULT_REWARDS.length);
+  });
+
+  it('refuses to edit a reward that is not there', () => {
+    const save = saveWithStreak(5);
+    expect(reduce(save, { kind: 'editReward', rewardId: 'nope', draft }, TODAY)).toBe(save);
+  });
+
+  it('archives rather than deletes, so spent points stay spent', () => {
+    const bought = reduce(
+      saveWithStreak(5),
+      { kind: 'claimReward', rewardId: 'screen-hour', personId: 'p1' },
+      TODAY,
+    );
+    expect(pointsBalance(bought, 'p1')).toBe(0);
+
+    const removed = reduce(
+      bought,
+      { kind: 'archiveReward', rewardId: 'screen-hour', archived: true },
+      TODAY,
+    );
+    expect(removed.claims).toHaveLength(1);
+    expect(pointsBalance(removed, 'p1')).toBe(0);
+    expect(activeRewards(removed).map((reward) => reward.id)).not.toContain('screen-hour');
+  });
+
+  it('cannot claim an archived reward', () => {
+    const removed = reduce(
+      saveWithStreak(5),
+      { kind: 'archiveReward', rewardId: 'screen-hour', archived: true },
+      TODAY,
+    );
+    expect(canClaim(removed, 'p1', TODAY, 'screen-hour')).toBe(false);
+  });
+
+  it('brings an archived reward back', () => {
+    let save = reduce(saveWithStreak(5), { kind: 'archiveReward', rewardId: 'screen-hour', archived: true }, TODAY);
+    save = reduce(save, { kind: 'archiveReward', rewardId: 'screen-hour', archived: false }, TODAY);
+    expect(activeRewards(save).map((reward) => reward.id)).toContain('screen-hour');
+  });
+
+  it('keeps an archived reward out of the shop listing', () => {
+    const removed = reduce(
+      saveWithStreak(20),
+      { kind: 'archiveReward', rewardId: 'chick-fil-a', archived: true },
+      TODAY,
+    );
+    expect(rewardStatuses(removed, 'p1', TODAY).map((s) => s.reward.id)).not.toContain('chick-fil-a');
+  });
+});
+
 describe('newlyAffordable', () => {
   it('reports what just came within reach, in ladder order', () => {
     const before = affordableIds(saveWithStreak(1), 'p1', TODAY);
     const after = affordableIds(saveWithStreak(5), 'p1', TODAY);
-    expect(newlyAffordable(before, after).map((reward) => reward.id)).toEqual(['screen-hour']);
+    const save = saveWithStreak(5);
+    expect(newlyAffordable(save, before, after).map((reward) => reward.id)).toEqual(['screen-hour']);
   });
 
   it('reports nothing when nothing changed', () => {
-    const ids = affordableIds(saveWithStreak(5), 'p1', TODAY);
-    expect(newlyAffordable(ids, ids)).toEqual([]);
+    const save = saveWithStreak(5);
+    const ids = affordableIds(save, 'p1', TODAY);
+    expect(newlyAffordable(save, ids, ids)).toEqual([]);
   });
 
   it('never reports something that was spent away', () => {
@@ -344,14 +431,16 @@ describe('newlyAffordable', () => {
       TODAY,
     );
     const after = affordableIds(spent, 'p1', TODAY);
-    expect(newlyAffordable(before, after)).toEqual([]);
+    expect(newlyAffordable(spent, before, after)).toEqual([]);
   });
 });
 
 describe('rewardStatuses', () => {
   it('returns one entry per reward, in ladder order', () => {
     const statuses = rewardStatuses(saveWithStreak(5), 'p1', TODAY);
-    expect(statuses.map((status) => status.reward.id)).toEqual(REWARDS.map((reward) => reward.id));
+    expect(statuses.map((status) => status.reward.id)).toEqual(
+      DEFAULT_REWARDS.map((reward) => reward.id),
+    );
   });
 
   it('scores each person separately', () => {

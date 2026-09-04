@@ -18,7 +18,10 @@ import {
   personById,
 } from '../core/model';
 import type { Person, PersonId } from '../core/model';
-import { MAX_PRICE, MIN_PRICE, POINTS_REWARDS, REWARDS, priceOf } from '../core/rewards';
+import { MAX_REWARDS } from '../core/model';
+import type { Reward } from '../core/model';
+import { activeRewards } from '../core/rewards';
+import { RewardForm } from './reward-form';
 import { exportJson } from '../core/storage';
 import type { App } from './app';
 import { el } from './dom';
@@ -93,7 +96,7 @@ export function buildSettings(app: App, editing: PersonId | null): HTMLElement {
       }),
     ]),
 
-    buildPricesSection(app),
+    buildRewardsSection(app),
 
     buildBackupSection(app),
 
@@ -189,58 +192,142 @@ function buildEditSection(app: App, personId: PersonId): HTMLElement {
 }
 
 /**
- * Prices are meant to be tuned once you see how fast the kids actually earn,
- * so they live here rather than in the code.
+ * The reward manager. Rewards live in the save rather than the code, so this
+ * is where the family shapes their own list.
  */
-function buildPricesSection(app: App): HTMLElement {
-  const rows = POINTS_REWARDS.map((reward) => {
-    const input = el('input', {
-      attrs: {
-        type: 'number',
-        min: String(MIN_PRICE),
-        max: String(MAX_PRICE),
-        inputmode: 'numeric',
-        'aria-label': `Price of ${reward.name} in points`,
-      },
-      on: {
-        change: () => {
-          const wanted = Number(input.value);
-          if (!Number.isFinite(wanted)) return;
-          app.updateSettings({
-            ...app.save.settings,
-            rewardPrices: { ...app.save.settings.rewardPrices, [reward.id]: wanted },
-          });
-        },
-      },
-    });
-    input.value = String(priceOf(app.save.settings, reward));
+function buildRewardsSection(app: App): HTMLElement {
+  const editing = app.rewardBeingEdited;
+  const live = activeRewards(app.save);
+  const archived = app.save.rewards.filter((reward) => reward.archived);
 
-    return el('label', { class: 'field price-row' }, [
-      el('span', { text: `${reward.emoji}  ${reward.name}` }),
-      input,
-    ]);
-  });
+  const list = el('div');
+  if (live.length === 0) {
+    list.append(el('p', { class: 'empty', text: 'No rewards yet. Add the first one below.' }));
+  }
+  for (const reward of live) list.append(buildRewardRow(app, reward, editing));
 
-  const streakLines = REWARDS.filter((reward) => reward.kind === 'streak').map((reward) =>
-    el('div', {
-      class: 'meta',
-      text:
-        reward.kind === 'streak'
-          ? `${reward.emoji}  ${reward.name} - ${String(reward.streakDays)}-day streak, once ever`
-          : '',
-    }),
+  const sections: HTMLElement[] = [
+    el('section', { class: 'card' }, [el('h2', { text: 'Rewards' }), list]),
+  ];
+
+  sections.push(editing === null ? buildAddReward(app) : buildEditReward(app, editing));
+
+  if (archived.length > 0) {
+    const removed = el('div');
+    for (const reward of archived) removed.append(buildArchivedRow(app, reward));
+    sections.push(
+      el('section', { class: 'card' }, [
+        el('h2', { text: 'Removed' }),
+        removed,
+        el('p', {
+          class: 'empty',
+          text: 'Kept rather than deleted, so points already spent on them stay spent.',
+        }),
+      ]),
+    );
+  }
+
+  sections.push(
+    el('section', { class: 'card' }, [
+      el('p', {
+        class: 'empty',
+        text: 'With a streak going, a child earns roughly 170 points a week at one pickup a day and 310 at three.',
+      }),
+    ]),
   );
 
-  return el('section', { class: 'card' }, [
-    el('h2', { text: 'Reward prices' }),
-    ...rows,
-    el('p', {
-      class: 'empty',
-      text: 'With a streak going, a child earns roughly 170 points a week at one pickup a day and 310 at three.',
+  return el('div', {}, sections);
+}
+
+function rewardCost(reward: Reward): string {
+  return reward.kind === 'points'
+    ? `${reward.price.toLocaleString()} pts`
+    : `🔥 ${String(reward.streakDays)} days, once ever`;
+}
+
+function buildRewardRow(app: App, reward: Reward, editing: string | null): HTMLElement {
+  return el('div', { class: 'roster' }, [
+    el('span', { class: 'reward-icon', text: reward.emoji, attrs: { 'aria-hidden': 'true' } }),
+    el('div', { class: 'who' }, [
+      el('div', { class: 'name', text: reward.name }),
+      el('div', { class: 'meta', text: rewardCost(reward) }),
+    ]),
+    el('button', {
+      class: 'mini',
+      text: editing === reward.id ? 'Editing' : 'Edit',
+      attrs: { type: 'button', 'aria-label': `Edit ${reward.name}` },
+      on: { click: () => app.editReward(reward.id) },
     }),
-    el('h2', { text: 'Streak prizes' }),
-    ...streakLines,
-    el('p', { class: 'empty', text: 'These two are not for sale and cannot be re-priced.' }),
+    el('button', {
+      class: 'mini danger',
+      text: 'Remove',
+      attrs: { type: 'button', 'aria-label': `Remove ${reward.name}` },
+      on: { click: () => app.archiveReward(reward.id, true) },
+    }),
+  ]);
+}
+
+function buildArchivedRow(app: App, reward: Reward): HTMLElement {
+  return el('div', { class: 'roster' }, [
+    el('span', { class: 'reward-icon', text: reward.emoji, attrs: { 'aria-hidden': 'true' } }),
+    el('div', { class: 'who' }, [
+      el('div', { class: 'name', text: reward.name }),
+      el('div', { class: 'meta', text: rewardCost(reward) }),
+    ]),
+    el('button', {
+      class: 'mini',
+      text: 'Bring back',
+      attrs: { type: 'button', 'aria-label': `Bring back ${reward.name}` },
+      on: { click: () => app.archiveReward(reward.id, false) },
+    }),
+  ]);
+}
+
+function buildAddReward(app: App): HTMLElement {
+  if (app.save.rewards.length >= MAX_REWARDS) {
+    return el('section', { class: 'card' }, [
+      el('p', { class: 'empty', text: `That is the maximum of ${String(MAX_REWARDS)} rewards.` }),
+    ]);
+  }
+
+  const button = el('button', { class: 'btn', text: 'Add reward', attrs: { type: 'button' } });
+  const form = new RewardForm(null, () => {
+    button.disabled = !form.isValid();
+  });
+  button.disabled = !form.isValid();
+  button.addEventListener('click', () => {
+    if (!form.isValid()) return;
+    app.addReward(form.draft());
+  });
+
+  return el('section', { class: 'card' }, [el('h2', { text: 'Add a reward' }), form.root, button]);
+}
+
+function buildEditReward(app: App, rewardId: string): HTMLElement {
+  const reward = app.save.rewards.find((entry) => entry.id === rewardId);
+  if (!reward) return el('div');
+
+  const save = el('button', { class: 'btn primary', text: 'Save changes', attrs: { type: 'button' } });
+  const form = new RewardForm(reward, () => {
+    save.disabled = !form.isValid();
+  });
+  save.addEventListener('click', () => {
+    if (!form.isValid()) return;
+    app.saveRewardEdit(rewardId, form.draft());
+  });
+
+  return el('section', { class: 'card' }, [
+    el('h2', { text: `Editing ${reward.name}` }),
+    form.root,
+    el('div', { class: 'btn-row' }, [
+      save,
+      el('button', {
+        class: 'btn',
+        text: 'Cancel',
+        attrs: { type: 'button' },
+        on: { click: () => app.editReward(null) },
+      }),
+    ]),
   ]);
 }
 

@@ -1,14 +1,18 @@
 /**
  * What the work actually buys.
  *
- * Two different currencies, on purpose:
+ * The list itself lives in the save, not in this file: the family adds their
+ * own rewards and re-prices them, so the constants here are only the set a
+ * brand-new save starts with.
  *
- *   - The three smaller rewards are BOUGHT WITH POINTS. Points scale with how
- *     many you actually picked up, so a big clean-up is worth more than a
- *     token one, which a pure streak gate could never express.
- *   - The two big ones are STREAK MILESTONES, claimed once in a lifetime and
- *     measured against the best run ever reached - so a hundred-day streak
- *     still counts after it eventually breaks. Nobody earns a Switch 2 twice.
+ * Two kinds, on purpose:
+ *
+ *   - POINTS rewards are bought, over and over. Points scale with how many
+ *     were actually picked up, so a big clean-up is worth more than a token
+ *     one, which a pure streak gate could never express.
+ *   - STREAK rewards are won once in a lifetime, measured against the best run
+ *     ever reached - so a hundred-day streak still counts after it eventually
+ *     breaks. Nobody earns a Switch 2 twice.
  *
  * The critical distinction is between points EARNED and points SPENT. Earned
  * points are the score: they drive the weekly leaderboard and the career rank
@@ -23,38 +27,16 @@
  */
 
 import type { DayKey } from './dates';
-import type { Claim, PersonId, SaveData, Settings } from './model';
+import type { Claim, PersonId, Reward, SaveData } from './model';
 import { careerPoints } from './scoring';
 import { bestStreak } from './streaks';
 
-export type RewardKind = 'points' | 'streak';
 export type RewardState = 'locked' | 'ready' | 'claimed';
 
-interface RewardBase {
-  readonly id: string;
-  readonly emoji: string;
-  readonly name: string;
-  /** One line a child can read. */
-  readonly blurb: string;
-}
-
-export interface PointsReward extends RewardBase {
-  readonly kind: 'points';
-  /** Overridable in settings; a claim remembers what it really cost. */
-  readonly defaultPrice: number;
-}
-
-export interface StreakReward extends RewardBase {
-  readonly kind: 'streak';
-  readonly streakDays: number;
-}
-
-export type RewardDef = PointsReward | StreakReward;
-
 export interface RewardStatus {
-  readonly reward: RewardDef;
+  readonly reward: Reward;
   readonly state: RewardState;
-  /** Points rewards: the current price and how the balance compares. */
+  /** Points rewards: the price, and how the balance compares. */
   readonly price: number;
   readonly balance: number;
   readonly shortBy: number;
@@ -67,77 +49,76 @@ export interface RewardStatus {
 
 export const MIN_PRICE = 1;
 export const MAX_PRICE = 100_000;
+export const MIN_STREAK_DAYS = 1;
+export const MAX_STREAK_DAYS = 1000;
 
 /**
- * Prices are calibrated against what the scoring actually pays: with a live
- * streak a child earns roughly 170 points a week at one pickup a day and 310
- * at three. So screen time lands every few days, lunch is a fortnight's work
- * and the arcade is a monthly treat - and a single day of pickups, worth 10 to
- * 30 points, still buys nothing at all.
+ * What a new save starts with, agreed with the family. Prices are calibrated
+ * against what the scoring really pays: with a streak going a child earns
+ * roughly 170 points a week at one pickup a day and 310 at three. So screen
+ * time lands every few days, lunch is a fortnight's work and MPB is a monthly
+ * treat - and a single day of pickups, worth 10 to 30 points, buys nothing.
  */
-export const REWARDS: readonly RewardDef[] = [
+export const DEFAULT_REWARDS: readonly Reward[] = [
   {
-    kind: 'points',
     id: 'screen-hour',
     emoji: '📺',
     name: '1 hour of screen time',
     blurb: 'TV, Switch or tablet - your pick.',
-    defaultPrice: 100,
+    kind: 'points',
+    price: 100,
+    streakDays: 0,
+    archived: false,
   },
   {
-    kind: 'points',
     id: 'chick-fil-a',
     emoji: '🍗',
     name: 'Chick-fil-A lunch',
     blurb: 'Lunch is on us.',
-    defaultPrice: 400,
+    kind: 'points',
+    price: 400,
+    streakDays: 0,
+    archived: false,
   },
   {
-    kind: 'points',
     id: 'arcade-basement',
     emoji: '🕹️',
-    // MPB is the family's shorthand for my parents' basement, which is where
-    // the arcade machines live. The id stays as it was: renaming it would
-    // orphan every claim already made and any price override in settings.
     name: 'MPB',
     blurb: "A whole afternoon at my parents' basement.",
-    defaultPrice: 800,
+    kind: 'points',
+    price: 800,
+    streakDays: 0,
+    archived: false,
   },
   {
-    kind: 'streak',
     id: 'cellphone',
     emoji: '📱',
     name: 'A cellphone',
     blurb: 'One hundred days in a row. Genuinely.',
+    kind: 'streak',
+    price: 0,
     streakDays: 100,
+    archived: false,
   },
   {
-    kind: 'streak',
     id: 'switch-2',
     emoji: '🎮',
     name: 'A Nintendo Switch 2',
     blurb: 'Two hundred days. The big one.',
+    kind: 'streak',
+    price: 0,
     streakDays: 200,
+    archived: false,
   },
 ];
 
-export const POINTS_REWARDS: readonly PointsReward[] = REWARDS.filter(
-  (reward): reward is PointsReward => reward.kind === 'points',
-);
-
-export function rewardById(id: string): RewardDef | null {
-  return REWARDS.find((reward) => reward.id === id) ?? null;
+/** The rewards on offer, in the order the family arranged them. */
+export function activeRewards(save: SaveData): readonly Reward[] {
+  return save.rewards.filter((reward) => !reward.archived);
 }
 
-export function defaultPrices(): Record<string, number> {
-  const prices: Record<string, number> = {};
-  for (const reward of POINTS_REWARDS) prices[reward.id] = reward.defaultPrice;
-  return prices;
-}
-
-export function priceOf(settings: Settings, reward: RewardDef): number {
-  if (reward.kind !== 'points') return 0;
-  return settings.rewardPrices[reward.id] ?? reward.defaultPrice;
+export function rewardById(save: SaveData, id: string): Reward | null {
+  return save.rewards.find((reward) => reward.id === id) ?? null;
 }
 
 export function claimsOf(
@@ -151,7 +132,7 @@ export function claimsOf(
     .sort((a, b) => a.day.localeCompare(b.day, 'en'));
 }
 
-/** Everything this person has ever spent. */
+/** Everything this person has ever spent, whatever it was spent on. */
 export function pointsSpent(claims: readonly Claim[], personId: PersonId): number {
   return claims
     .filter((claim) => claim.personId === personId)
@@ -167,22 +148,21 @@ export function rewardStatus(
   save: SaveData,
   personId: PersonId,
   today: DayKey,
-  reward: RewardDef,
+  reward: Reward,
 ): RewardStatus {
   const mine = claimsOf(save.claims, personId, reward.id);
   const lastClaimed = mine[mine.length - 1]?.day ?? null;
   const timesClaimed = mine.length;
 
   if (reward.kind === 'points') {
-    const price = priceOf(save.settings, reward);
     const balance = pointsBalance(save, personId);
     return {
       reward,
       // Points rewards are never "claimed": save up and buy another.
-      state: balance >= price ? 'ready' : 'locked',
-      price,
+      state: balance >= reward.price ? 'ready' : 'locked',
+      price: reward.price,
       balance,
-      shortBy: Math.max(0, price - balance),
+      shortBy: Math.max(0, reward.price - balance),
       streak: 0,
       daysToGo: 0,
       lastClaimed,
@@ -191,11 +171,10 @@ export function rewardStatus(
   }
 
   const streak = bestStreak(save.log, personId, today);
-  const unlocked = streak >= reward.streakDays;
 
   return {
     reward,
-    state: timesClaimed > 0 ? 'claimed' : unlocked ? 'ready' : 'locked',
+    state: timesClaimed > 0 ? 'claimed' : streak >= reward.streakDays ? 'ready' : 'locked',
     price: 0,
     balance: 0,
     shortBy: 0,
@@ -211,7 +190,7 @@ export function rewardStatuses(
   personId: PersonId,
   today: DayKey,
 ): readonly RewardStatus[] {
-  return REWARDS.map((reward) => rewardStatus(save, personId, today, reward));
+  return activeRewards(save).map((reward) => rewardStatus(save, personId, today, reward));
 }
 
 /** How many rewards this person could take right now. Drives the home badge. */
@@ -220,20 +199,20 @@ export function readyCount(save: SaveData, personId: PersonId, today: DayKey): n
 }
 
 export function canClaim(save: SaveData, personId: PersonId, today: DayKey, rewardId: string): boolean {
-  const reward = rewardById(rewardId);
-  if (!reward) return false;
+  const reward = rewardById(save, rewardId);
+  if (!reward || reward.archived) return false;
   if (!save.people.some((person) => person.id === personId)) return false;
   return rewardStatus(save, personId, today, reward).state === 'ready';
 }
 
 /** What claiming this would cost right now, so the reducer can record it. */
 export function costOf(save: SaveData, rewardId: string): number {
-  const reward = rewardById(rewardId);
-  if (!reward) return 0;
-  return priceOf(save.settings, reward);
+  const reward = rewardById(save, rewardId);
+  if (!reward || reward.kind !== 'points') return 0;
+  return reward.price;
 }
 
-/** The ids a person can take, used to celebrate one that has just come within reach. */
+/** The ids a person can take, used to celebrate one coming within reach. */
 export function affordableIds(save: SaveData, personId: PersonId, today: DayKey): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const status of rewardStatuses(save, personId, today)) {
@@ -242,10 +221,11 @@ export function affordableIds(save: SaveData, personId: PersonId, today: DayKey)
   return ids;
 }
 
-/** Rewards that became reachable between two snapshots, in ladder order. */
+/** Rewards that became reachable between two snapshots, in list order. */
 export function newlyAffordable(
+  save: SaveData,
   before: ReadonlySet<string>,
   after: ReadonlySet<string>,
-): readonly RewardDef[] {
-  return REWARDS.filter((reward) => after.has(reward.id) && !before.has(reward.id));
+): readonly Reward[] {
+  return activeRewards(save).filter((reward) => after.has(reward.id) && !before.has(reward.id));
 }

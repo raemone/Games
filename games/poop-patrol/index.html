@@ -899,6 +899,39 @@
         cursor: default;
       }
 
+      .reward-icon {
+        width: var(--tap);
+        height: var(--tap);
+        border-radius: 12px;
+        background: var(--panel-high);
+        border: 2px solid var(--border);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+
+      .kind-picker {
+        display: flex;
+        gap: 8px;
+      }
+
+      .kind {
+        flex: 1;
+        min-height: var(--tap);
+        border-radius: 11px;
+        border: 2px solid var(--border);
+        background: var(--panel-high);
+        font-size: 13px;
+        padding: 0 8px;
+      }
+
+      .kind[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
       .price-row {
         display: flex;
         align-items: center;

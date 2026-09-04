@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { defaultSettings } from '../src/core/model';
-import type { Claim, Log, Person, SaveData } from '../src/core/model';
+import type { Claim, Log, Person, Reward, SaveData } from '../src/core/model';
+import { DEFAULT_REWARDS } from '../src/core/rewards';
 import { SAVE_VERSION } from '../src/core/storage';
 
 export function person(id: string, name = id.toUpperCase()): Person {
@@ -12,14 +13,25 @@ export function saveWith(
   log: Log,
   weeklyGoal = 25,
   claims: readonly Claim[] = [],
+  rewards: readonly Reward[] = DEFAULT_REWARDS,
 ): SaveData {
   return {
     version: SAVE_VERSION,
     people,
     nextPersonId: people.length + 1,
     log,
+    rewards: rewards.map((reward) => ({ ...reward })),
+    nextRewardId: 1,
     claims,
     settings: { ...defaultSettings(), weeklyGoal },
+  };
+}
+
+/** Re-price one reward, the way the settings screen would. */
+export function withPrice(save: SaveData, rewardId: string, price: number): SaveData {
+  return {
+    ...save,
+    rewards: save.rewards.map((reward) => (reward.id === rewardId ? { ...reward, price } : reward)),
   };
 }
 
