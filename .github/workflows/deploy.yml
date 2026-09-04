@@ -26,18 +26,32 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: games/roxy-run/package-lock.json
+          cache-dependency-path: |
+            games/roxy-run/package-lock.json
+            games/poop-patrol/package-lock.json
 
-      - name: Install
+      - name: Install (roxy-run)
         working-directory: games/roxy-run
         run: npm ci
 
-      - name: Test
+      - name: Test (roxy-run)
         working-directory: games/roxy-run
         run: npm test
 
-      - name: Build
+      - name: Build (roxy-run)
         working-directory: games/roxy-run
+        run: npm run build
+
+      - name: Install (poop-patrol)
+        working-directory: games/poop-patrol
+        run: npm ci
+
+      - name: Test (poop-patrol)
+        working-directory: games/poop-patrol
+        run: npm test
+
+      - name: Build (poop-patrol)
+        working-directory: games/poop-patrol
         run: npm run build
 
       - name: Assemble site
@@ -45,6 +59,7 @@ jobs:
           mkdir -p _site
           cp site/index.html _site/index.html
           cp -r games/roxy-run/dist _site/roxy-run
+          cp -r games/poop-patrol/dist _site/poop-patrol
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -35,16 +35,23 @@
       a.card:hover, a.card:focus-visible { transform: translateY(-2px); border-color: #ffd88a; }
       a.card h2 { font-size: 22px; margin-bottom: 6px; color: #ffd88a; }
       a.card span { color: #b9a8d8; font-size: 15px; }
+      .cards { display: grid; gap: 14px; }
     </style>
   </head>
   <body>
     <main>
       <h1>Games</h1>
-      <p class="sub">Little browser games. Best on a phone or tablet, held sideways.</p>
-      <a class="card" href="./roxy-run/">
-        <h2>🐕 Roxy Run</h2>
-        <span>A pixel platformer starring Roxy the golden retriever. Run, roll and jump through three worlds.</span>
-      </a>
+      <p class="sub">Little browser things. Best on a phone or tablet.</p>
+      <div class="cards">
+        <a class="card" href="./roxy-run/">
+          <h2>🐕 Roxy Run</h2>
+          <span>A pixel platformer starring Roxy the golden retriever. Run, roll and jump through three worlds.</span>
+        </a>
+        <a class="card" href="./poop-patrol/">
+          <h2>💩 Poop Patrol</h2>
+          <span>Track who picked up after Roxy in the backyard. Points, streaks and a weekly family leaderboard.</span>
+        </a>
+      </div>
     </main>
   </body>
 </html>

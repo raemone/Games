@@ -1,0 +1,16 @@
+{
+  "name": "Poop Patrol",
+  "short_name": "Poop Patrol",
+  "description": "Track who picked up after the dog, with points, streaks and a weekly family leaderboard.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0715",
+  "theme_color": "#1b1030",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-576.png", "sizes": "576x576", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-576.png", "sizes": "576x576", "type": "image/png", "purpose": "maskable" }
+  ]
+}
