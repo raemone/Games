@@ -8,6 +8,7 @@ import type { Input } from '../engine/input';
 import type { Layout } from '../engine/renderer';
 import { formatScore, formatTime } from './scoring';
 import type { Session } from './session';
+import type { Sprites } from './sprites';
 
 const PANEL = 'rgba(12, 8, 26, 0.62)';
 const INK = '#ffffff';
@@ -18,7 +19,12 @@ function baseSize(layout: Layout): number {
   return Math.max(12, Math.min(layout.height * 0.045, 26));
 }
 
-export function drawHud(ctx: CanvasRenderingContext2D, layout: Layout, session: Session): void {
+export function drawHud(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  session: Session,
+  sprites: Sprites,
+): void {
   const size = baseSize(layout);
   const pad = size * 0.6;
   const lineHeight = size * 1.25;
@@ -46,7 +52,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, layout: Layout, session: 
     ctx.fillText(line, left + pad, top + pad * 0.9 + i * lineHeight);
   });
 
-  drawLives(ctx, layout, session, size, pad);
+  drawLives(ctx, layout, session, size, pad, sprites);
   if (session.chaseIsClose) drawChaseWarning(ctx, layout, session, size);
 }
 
@@ -72,32 +78,37 @@ function drawLives(
   session: Session,
   size: number,
   pad: number,
+  sprites: Sprites,
 ): void {
   const text = `x${Math.max(0, session.run.lives)}`;
   ctx.font = `600 ${size}px system-ui, sans-serif`;
-  const width = ctx.measureText(text).width + size * 2.2;
+
+  // The counter shows the same bone the player collects, drawn from the sheet
+  // rather than approximated with canvas shapes, so the two always match.
+  const bone = sprites.propSize('bone');
+  const scale = Math.max(1, Math.round((size * 1.1) / bone.h));
+  const boneW = bone.w * scale;
+  const boneH = bone.h * scale;
+
+  const width = ctx.measureText(text).width + boneW + size * 1.4;
   const right = layout.width - pad - layout.insets.right;
   const top = pad + layout.insets.top;
+  const height = Math.max(size * 1.8, boneH + size * 0.5);
 
   ctx.fillStyle = PANEL;
-  roundRect(ctx, right - width, top, width, size * 1.8, size * 0.4);
+  roundRect(ctx, right - width, top, width, height, size * 0.4);
   ctx.fill();
 
-  // A little bone glyph rather than loading a sprite into screen space.
-  const boneX = right - width + size * 0.8;
-  const boneY = top + size * 0.9;
-  ctx.fillStyle = '#fbe6c0';
-  ctx.fillRect(boneX - size * 0.35, boneY - size * 0.1, size * 0.7, size * 0.2);
-  for (const dx of [-size * 0.4, size * 0.4]) {
-    for (const dy of [-size * 0.2, size * 0.2]) {
-      ctx.beginPath();
-      ctx.arc(boneX + dx, boneY + dy, size * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  sprites.drawPropScaled(
+    ctx,
+    'bone',
+    right - width + size * 0.5,
+    top + (height - boneH) / 2,
+    scale,
+  );
 
   ctx.fillStyle = INK;
-  ctx.fillText(text, boneX + size * 0.7, top + size * 0.4);
+  ctx.fillText(text, right - width + size * 0.5 + boneW + size * 0.4, top + (height - size) / 2);
 }
 
 /** The virtual buttons. Only drawn once the player has actually used touch. */

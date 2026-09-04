@@ -81,6 +81,39 @@ export class Sprites {
     );
   }
 
+  /**
+   * Draw a prop scaled up, for the HUD. The HUD works in CSS pixels while the
+   * sprites are drawn at the world's 1:1 scale, so it needs its own path.
+   * Returns the drawn width so the caller can lay out beside it.
+   */
+  drawPropScaled(
+    ctx: CanvasRenderingContext2D,
+    name: PropName,
+    x: number,
+    y: number,
+    scale: number,
+  ): number {
+    const region = PROPS[name];
+    ctx.drawImage(
+      this.props,
+      region.x,
+      region.y,
+      region.w,
+      region.h,
+      Math.round(x),
+      Math.round(y),
+      region.w * scale,
+      region.h * scale,
+    );
+    return region.w * scale;
+  }
+
+  /** The pixel size of a prop, for laying out around it. */
+  propSize(name: PropName): { w: number; h: number } {
+    const region = PROPS[name];
+    return { w: region.w, h: region.h };
+  }
+
   /** Draw a prop centred on both axes - for things that float, like bones. */
   drawPropCentred(
     ctx: CanvasRenderingContext2D,

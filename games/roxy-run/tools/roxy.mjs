@@ -34,41 +34,37 @@ function leg(grid, hipX, hipY, phase, reach, lift, colour, feather) {
 }
 
 /**
- * The plumed tail. Carried swept back and a little up: level, it disappears
- * behind the body at this size, and the plume is the most recognisable part of
- * the breed's silhouette.
+ * The tail: carried straight out and level with the back, with a light fringe
+ * hanging beneath it - the retriever part of an otherwise plain silhouette.
  */
 function tail(grid, wag) {
   const lift = Math.sin(wag) * 1.2;
-  grid.capsule(9, 15, 5, 12.5 - lift * 0.5, 2.8, 'M');
-  grid.capsule(5, 12.5 - lift * 0.5, 2.4, 10 - lift, 2.7, 'M');
-  grid.ellipse(2.6, 10 - lift, 2.8, 2.6, 'L');
-  // The long fringe hanging beneath it.
-  grid.capsule(8, 17.5, 4.2, 15 - lift * 0.4, 2.2, 'C');
-  grid.capsule(4.2, 15 - lift * 0.4, 2.6, 12.8 - lift, 2, 'C');
+  grid.capsule(10, 14.8, 3, 13 - lift, 2.5, 'M');
+  grid.ellipse(2.8, 13 - lift, 1.9, 1.8, 'L');
+  grid.capsule(9, 16.4, 3.6, 14.8 - lift * 0.8, 1.8, 'C');
 }
 
 function head(grid, dy, blink, earSwing) {
-  // A broad round skull and a short blunt muzzle. The muzzle is gold with only
-  // a small cream chin - as a pale slab it looked like an exposed jaw.
-  grid.ellipse(24.4, 9 + dy, 4.5, 4.5, 'M');
-  grid.ellipse(24.2, 6.6 + dy, 3, 1.4, 'L'); // lit top of the skull
-  // A long straight muzzle, in gold. Short and blunt it read as a bear cub;
-  // pale, it read as an exposed jaw.
-  grid.capsule(26.2, 11.4 + dy, 29.2, 11.6 + dy, 2.4, 'M');
+  // Order matters here: skull, then the ear hanging over the back of it, then
+  // the muzzle in front of the ear. Draw the ear last and it swallows the
+  // snout, which is what turned her into a floppy-eared blob.
+  grid.ellipse(23.5, 8.5 + dy, 4.2, 4.2, 'M');
+  grid.ellipse(23.4, 6.2 + dy, 2.8, 1.3, 'L'); // lit top of the skull
 
-  // Ear: set high, hanging, and thick with fur.
-  grid.capsule(23, 6 + dy, 22 + earSwing, 13 + dy, 3, 'D');
-  grid.ellipse(22 + earSwing, 14 + dy, 2.8, 2.4, 'D');
+  grid.capsule(21.6, 6.4 + dy, 21 + earSwing, 11.6 + dy, 2.2, 'D');
+  grid.ellipse(21 + earSwing, 12.2 + dy, 2.1, 1.9, 'D');
 
-  grid.ellipse(30, 11.3 + dy, 1.7, 1.6, 'N'); // nose
+  // A long straight muzzle, in gold, with the nose at the tip.
+  grid.capsule(26, 10.6 + dy, 29.2, 10.8 + dy, 2.1, 'M');
+  grid.ellipse(29.8, 10.6 + dy, 1.5, 1.4, 'N');
+
   if (blink) {
-    grid.rect(25, 8 + dy, 3, 1, 'o');
+    grid.rect(24.4, 7.6 + dy, 3, 1, 'B');
   } else {
-    grid.ellipse(25.9, 8.2 + dy, 1.2, 1.3, 'E');
-    grid.set(25.5, 7.6 + dy, 'W');
+    grid.ellipse(25.3, 7.8 + dy, 1.1, 1.2, 'E');
+    grid.set(24.9, 7.3 + dy, 'W');
   }
-  grid.set(28.6, 13.6 + dy, 'o'); // mouth line
+  grid.set(28.4, 12.6 + dy, 'B'); // mouth line
 }
 
 function body(grid, dy) {
@@ -76,7 +72,7 @@ function body(grid, dy) {
   grid.ellipse(14, 17.5 + dy, 10, 6.4, 'M');
   grid.ellipse(20, 17 + dy, 5.6, 6, 'M'); // chest
   grid.ellipse(8.5, 17 + dy, 6, 6, 'M'); // haunch
-  grid.capsule(21, 14 + dy, 24, 10.5 + dy, 3.6, 'M'); // neck
+  grid.capsule(20.8, 15 + dy, 23, 11 + dy, 3.2, 'M'); // neck
 
   // A narrow sunlit rim along the spine only. As a broad band it washed the
   // whole dog out to one pale colour, and she stopped reading as golden.
@@ -85,21 +81,10 @@ function body(grid, dy) {
   // Feathering: a thin fringe under the belly and a small chest ruff.
   grid.ellipse(14, BELLY_Y + dy, 7.4, 1.4, 'C');
   grid.ellipse(20.4, 20.4 + dy, 3, 1.9, 'C');
-  // Shade under the jaw so the head reads separately from the shoulders.
-  grid.ellipse(21.5, 15.5 + dy, 2.6, 1.6, 'D');
-}
-
-/** The collar goes on last, or the head and ruff draw straight over it. */
-function collar(grid, dy) {
-  // A slim band at the base of the neck. Thick and high it sat over her face
-  // and read as a lolling tongue.
-  grid.capsule(18.8, 16.2 + dy, 21.6, 13.4 + dy, 1.3, 'R');
-  grid.capsule(19.2, 16.8 + dy, 22, 14 + dy, 0.6, 'r');
-  grid.ellipse(19.8, 17.2 + dy, 1, 1, 'Y'); // tag
 }
 
 function finish(grid) {
-  grid.outline('o');
+  grid.outline('B');
   return grid;
 }
 
@@ -121,7 +106,6 @@ function pose({
   tail(grid, wag);
   body(grid, bodyDy);
   head(grid, bodyDy, blink, earSwing);
-  collar(grid, bodyDy);
   leg(grid, 9.5, BELLY_Y + 1 + bodyDy, backPhase, reach, lift, 'M', true);
   leg(grid, 20.5, BELLY_Y + 1 + bodyDy, frontPhase, reach, lift, 'M', true);
   return finish(grid);
@@ -162,7 +146,6 @@ function jumpFrame() {
   tail(grid, 0.6);
   body(grid, -1);
   head(grid, -1.5, false, 1.6);
-  collar(grid, -1.5);
   leg(grid, 10.5, BELLY_Y, 2.4, 6, 0, 'M', true);
   leg(grid, 20.5, BELLY_Y, -1.9, 6, 0, 'M', true);
   return finish(grid);
@@ -170,25 +153,12 @@ function jumpFrame() {
 
 function hurtFrame() {
   const grid = new Grid(CELL, CELL);
-  leg(grid, 9.5, BELLY_Y, 2.2, 6, 5, 'D', false);
+  leg(grid, 8.5, BELLY_Y, 2.2, 6, 5, 'D', false);
   leg(grid, 19.5, BELLY_Y, -2.2, 6, 5, 'D', false);
   tail(grid, 2.6);
   body(grid, 0);
-
-  grid.ellipse(24.4, 9, 4.5, 4.5, 'M');
-  grid.ellipse(24.2, 6.6, 3, 1.4, 'L');
-  grid.capsule(26.2, 11.4, 29.2, 11.6, 2.4, 'M');
-  grid.capsule(23, 5, 21.6, 12, 3, 'D');
-  grid.ellipse(30, 11.3, 1.7, 1.6, 'N');
-  collar(grid, 0);
-  // Screwed-shut eye.
-  grid.set(25.5, 7, 'o');
-  grid.set(27.5, 7, 'o');
-  grid.set(26.5, 8, 'o');
-  grid.set(25.5, 9, 'o');
-  grid.set(27.5, 9, 'o');
-
-  leg(grid, 10.5, BELLY_Y + 1, 2.2, 6, 5, 'M', true);
+  head(grid, 0, true, -1.2); // eye screwed shut
+  leg(grid, 9.5, BELLY_Y + 1, 2.2, 6, 5, 'M', true);
   leg(grid, 20.5, BELLY_Y + 1, -2.2, 6, 5, 'M', true);
   return finish(grid);
 }
@@ -201,7 +171,6 @@ function skidFrame() {
   tail(grid, 2.8);
   body(grid, 2);
   head(grid, 1, false, -1.6);
-  collar(grid, 1);
   leg(grid, 10.5, BELLY_Y + 3, -0.5, 3, 0, 'M', true);
   leg(grid, 20.5, BELLY_Y + 1, 1.4, 7, 0, 'M', true);
   return finish(grid);
@@ -215,7 +184,6 @@ function victoryFrame(up) {
   tail(grid, up ? 0.3 : 2.6);
   body(grid, dy);
   head(grid, dy - (up ? 1 : 0), false, up ? -2 : 0);
-  collar(grid, dy);
   grid.ellipse(31, 14 + dy, 1.3, 2, 'T'); // tongue out, very pleased
   leg(grid, 10.5, BELLY_Y + 1 + dy, 0.2, 3, 0, 'M', true);
   leg(grid, 20.5, BELLY_Y - 1 + dy, up ? -1.7 : -1.2, 6, 6, 'M', true);

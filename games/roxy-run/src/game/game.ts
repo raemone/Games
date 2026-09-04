@@ -299,7 +299,7 @@ export class Game {
     }
 
     if (this.session && this.screen !== 'title' && this.screen !== 'select' && this.screen !== 'finished') {
-      drawHud(screenCtx, layout, this.session);
+      drawHud(screenCtx, layout, this.session, this.sprites);
     }
 
     this.buttons = this.renderOverlays();

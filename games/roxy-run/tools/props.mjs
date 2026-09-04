@@ -10,31 +10,32 @@ function finish(grid) {
 /**
  * The bone Roxy collects - this game's ring.
  *
- * Hand-authored rather than composed from ellipses: at 16px a bone lives or
- * dies on the waist between its four knobs, and shapes fat enough to read as
- * knobs always merged into one blob. Three tones, lit from the top left, so it
- * pops against grass, snow and sand alike.
+ * Hand-authored including its own outline. Built from circles the notch at each
+ * outer edge kept coming out a single pixel deep, which the outline pass then
+ * filled in, and the bone turned back into a blob. Written out by hand the
+ * notch is exactly as deep as it needs to be.
+ *
+ * A long thin shaft with a grey line under its top edge, four knobs, and a
+ * near-black outline so it stays legible on grass, snow and sand alike.
  */
 const BONE_ROWS = [
-  '.WWWWW....WWWWW.',
-  'WWWWWW....WWWWWW',
-  'cccccc....cccccc',
-  'cccccc....cccccc',
-  'cccccccccccccccc',
-  'cccccccccccccccc',
-  'cccccccccccccccc',
-  'cccccc....cccccc',
-  'cccccc....cccccc',
-  'CCCCCC....CCCCCC',
-  '.CCCCC....CCCCC.',
+  '..nnn..........nnn..',
+  '.ngggn........ngggn.',
+  'ngWWWgn......ngWWWgn',
+  'nWWWWWnnnnnnnnWWWWWn',
+  '.nWWWWggggggggWWWWn.',
+  '.nWWWWWWWWWWWWWWWWn.',
+  '.nWWWWWWWWWWWWWWWWn.',
+  'nWWWWWnnnnnnnnWWWWWn',
+  'ngWWWgn......ngWWWgn',
+  '.ngggn........ngggn.',
+  '..nnn..........nnn..',
 ];
 
 export function bone() {
-  // Wider than a tile, with a straight three-row shaft between the knobs. A
-  // pinched waist reads as a bowtie; the flat middle is what says "bone".
-  const g = new Grid(18, 16);
-  g.stamp(BONE_ROWS, 1, 2);
-  return finish(g);
+  const g = new Grid(20, 11);
+  g.stamp(BONE_ROWS, 0, 0);
+  return g;
 }
 
 /** A springy pad. `sprung` is the squashed-and-released frame. */

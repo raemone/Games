@@ -18,6 +18,13 @@ export const PAL = {
   r: '#c04f76', // collar shadow
   Y: '#ffd88a', // collar tag / sparkle
   S: '#8a93a6', // stone and metal
+  // The bone. Near-black outline and a grey rim rather than the warm brown
+  // used elsewhere, so it stays legible on grass, snow and sand alike.
+  n: '#17161c',
+  g: '#c9ccd2',
+  // Roxy's own outline: a cool dark navy rather than the warm brown used on
+  // the scenery, which is what makes her read as the foreground character.
+  B: '#2f3d4f',
   // Ducks. White everywhere - they are the same bird in every world.
   q: '#f4f8fc', // duck white
   Q: '#ccd9e6', // duck shading
