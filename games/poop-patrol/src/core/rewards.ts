@@ -96,8 +96,11 @@ export const REWARDS: readonly RewardDef[] = [
     kind: 'points',
     id: 'arcade-basement',
     emoji: '🕹️',
-    name: "Grandparents' arcade",
-    blurb: 'A whole afternoon in the basement.',
+    // MPB is the family's shorthand for my parents' basement, which is where
+    // the arcade machines live. The id stays as it was: renaming it would
+    // orphan every claim already made and any price override in settings.
+    name: 'MPB',
+    blurb: "A whole afternoon at my parents' basement.",
     defaultPrice: 800,
   },
   {

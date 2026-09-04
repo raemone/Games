@@ -116,7 +116,7 @@ with them, over and over:
 |---|---|---|
 | 📺 | 1 hour of screen time — TV, Switch or tablet | 100 pts |
 | 🍗 | Chick-fil-A lunch | 400 pts |
-| 🕹️ | Grandparents' arcade basement | 800 pts |
+| 🕹️ | MPB — an afternoon at the arcade in my parents' basement | 800 pts |
 
 The two big ones are not for sale. They need a streak that long and can only be
 won once:
@@ -134,8 +134,8 @@ sensible move would be to never redeem anything.
 
 Prices are calibrated against what the scoring actually pays: with a streak
 going, a child earns roughly 170 points a week at one pickup a day and 310 at
-three. So screen time lands every few days, lunch is a fortnight's work, and the
-arcade is a monthly treat. A single day of pickups is worth 10 to 30 points, so
+three. So screen time lands every few days, lunch is a fortnight's work, and MPB is a
+monthly treat. A single day of pickups is worth 10 to 30 points, so
 it still buys nothing at all — which was the rule the family set. Every price is
 editable in settings, because you will want to tune them once you see how fast
 the kids really earn.
