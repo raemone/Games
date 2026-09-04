@@ -16,9 +16,24 @@ import { Session } from './session';
 import { Sprites } from './sprites';
 import { themeForWorld } from './theme';
 import { WorldRenderer } from './draw';
-import { drawButtonRow, drawCornerControls, hitButton, type UiButton } from './ui';
+import {
+  drawButtonRow,
+  drawCornerControls,
+  drawTextButton,
+  hitButton,
+  uiScale,
+  type UiButton,
+} from './ui';
 
-type Screen = 'title' | 'select' | 'play' | 'paused' | 'complete' | 'gameOver' | 'finished';
+type Screen =
+  | 'title'
+  | 'select'
+  | 'play'
+  | 'paused'
+  | 'complete'
+  | 'gameOver'
+  | 'finished'
+  | 'confirmReset';
 
 /** How long the victory animation plays before the results panel. */
 const VICTORY_TICKS = 90;
@@ -102,6 +117,10 @@ export class Game {
       case 'finished':
         if (ready && (state.confirmPressed || tap)) this.go('select');
         break;
+
+      case 'confirmReset':
+        // Deliberately inert: only the two buttons decide this one.
+        break;
     }
   }
 
@@ -126,12 +145,41 @@ export class Game {
       case 'next':
         this.advance();
         break;
+      case 'restart':
+        this.retryLevel();
+        break;
+      case 'reset':
+        this.go('confirmReset');
+        break;
+      case 'resetYes':
+        this.resetProgress();
+        break;
+      case 'resetNo':
+        this.go('select');
+        break;
       case 'play':
         this.go('select');
         break;
       default:
         break;
     }
+  }
+
+  /**
+   * Wipe every saved score and re-lock the worlds. Only reachable behind a
+   * confirmation, because on a shared tablet this is one tap away from
+   * destroying a sibling's progress.
+   */
+  private resetProgress(): void {
+    storage.clear();
+    this.save = storage.defaultSave();
+    this.audio.setMuted(this.save.settings.muted);
+    this.audio.stopTune();
+    this.levelIndex = 0;
+    this.run = createRun();
+    this.session = null;
+    this.world = null;
+    this.go('select');
   }
 
   private toggleMute(): void {
@@ -282,6 +330,7 @@ export class Game {
   render(): void {
     const layout = this.renderer.layout;
     const screenCtx = this.renderer.screen;
+    let resetButton: UiButton | null = null;
 
     if (this.screen === 'play' || this.screen === 'paused' || this.screen === 'complete' || this.screen === 'gameOver') {
       this.renderWorld();
@@ -291,27 +340,44 @@ export class Game {
       case 'title':
         drawTitle(screenCtx, layout, this.tick);
         break;
-      case 'select':
+      case 'select': {
         this.hotspots = drawLevelSelect(screenCtx, layout, this.save, this.levelIndex);
+        // Tucked into the bottom corner and rendered quietly: a parent can
+        // find it, a child skimming for the next level will not.
+        const margin = uiScale(layout) * 0.8;
+        resetButton = drawTextButton(
+          screenCtx,
+          layout,
+          margin,
+          layout.height - margin - layout.insets.bottom,
+          'reset',
+          'Erase scores',
+          true,
+        );
         break;
+      }
       default:
         break;
     }
 
-    if (this.session && this.screen !== 'title' && this.screen !== 'select' && this.screen !== 'finished') {
-      drawHud(screenCtx, layout, this.session, this.sprites);
-    }
+    const hudVisible =
+      this.session !== null &&
+      !['title', 'select', 'finished', 'confirmReset'].includes(this.screen);
+    if (hudVisible && this.session) drawHud(screenCtx, layout, this.session, this.sprites);
 
     this.buttons = this.renderOverlays();
 
-    // Pause and mute live in the corner during play; on the menus only mute.
+    // Pause and mute live in the corner during play; elsewhere only mute, and
+    // it stays reachable while paused.
     const playing = this.screen === 'play';
-    if (playing || this.screen === 'title' || this.screen === 'select') {
+    const showsCorner = playing || ['title', 'select', 'paused'].includes(this.screen);
+    if (showsCorner) {
       this.buttons = [
         ...this.buttons,
-        ...drawCornerControls(screenCtx, layout, this.save.settings.muted, playing),
+        ...drawCornerControls(screenCtx, layout, this.save.settings.muted, playing, hudVisible),
       ];
     }
+    if (resetButton) this.buttons = [...this.buttons, resetButton];
 
     // The pad is only useful while playing; on the menus it covers the cards.
     if (playing) drawTouchControls(screenCtx, this.input);
@@ -348,8 +414,8 @@ export class Game {
           buttonRow,
           [
             { id: 'resume', text: 'Keep going' },
+            { id: 'restart', text: 'Start level again' },
             { id: 'levels', text: 'Levels' },
-            { id: 'mute', text: this.save.settings.muted ? 'Sound on' : 'Sound off' },
           ],
           null,
         );
@@ -398,6 +464,30 @@ export class Game {
             { id: 'levels', text: 'Levels' },
           ],
           'retry',
+        );
+
+      case 'confirmReset':
+        drawOverlay(
+          ctx,
+          layout,
+          {
+            title: 'Erase everything?',
+            lines: [
+              'Every best score and time will be lost,',
+              'and worlds 2 and 3 will be locked again.',
+            ],
+          },
+          this.tick,
+        );
+        return drawButtonRow(
+          ctx,
+          layout,
+          buttonRow,
+          [
+            { id: 'resetNo', text: 'No, keep it' },
+            { id: 'resetYes', text: 'Yes, erase it' },
+          ],
+          'resetNo',
         );
 
       case 'finished':

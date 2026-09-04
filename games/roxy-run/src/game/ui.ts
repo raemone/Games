@@ -99,6 +99,44 @@ export function drawButtonRow(
 }
 
 /**
+ * A small button at an explicit position, for secondary actions that should
+ * not compete with the main ones. `quiet` renders it muted, which is what a
+ * destructive action wants: findable by a parent, not inviting to a child.
+ */
+export function drawTextButton(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  x: number,
+  y: number,
+  id: string,
+  text: string,
+  quiet = false,
+): UiButton {
+  const size = uiScale(layout) * (quiet ? 0.78 : 1);
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+
+  const width = ctx.measureText(text).width + size * 2;
+  const height = size * 2.2;
+  const button = { id, x, y: y - height / 2, w: width, h: height };
+
+  roundRect(ctx, button.x, button.y, width, height, size * 0.6);
+  ctx.fillStyle = quiet ? 'rgba(255,255,255,0.06)' : '#2a1b4a';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = quiet ? 'rgba(255,255,255,0.22)' : '#4a3675';
+  ctx.stroke();
+
+  ctx.fillStyle = quiet ? 'rgba(244,236,255,0.72)' : INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, button.x + width / 2, y);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  return button;
+}
+
+/**
  * The pause and mute controls, tucked into the top-right corner.
  * Without these there is no way to pause or silence the game on a tablet.
  */
@@ -107,12 +145,15 @@ export function drawCornerControls(
   layout: Layout,
   muted: boolean,
   showPause: boolean,
+  belowHud: boolean,
 ): UiButton[] {
   const size = uiScale(layout);
   const button = size * 2.1;
   const margin = size * 0.6;
-  // Below the lives panel, which occupies the very top-right.
-  const y = margin * 2 + size * 1.8 + layout.insets.top;
+  // These clear the lives panel whenever it is on screen - which includes the
+  // pause and results screens, not just play. On the menus there is no panel,
+  // and dropping them down overlaps the top-right level card instead.
+  const y = layout.insets.top + margin + (belowHud ? margin + size * 1.8 : 0);
 
   const buttons: UiButton[] = [];
   let x = layout.width - margin - button - layout.insets.right;

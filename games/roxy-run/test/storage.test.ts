@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SAVE_VERSION, defaultSave, load, migrate, recordResult, save } from '../src/engine/storage';
+import { SAVE_VERSION, clear, defaultSave, load, migrate, recordResult, save } from '../src/engine/storage';
 
 /** A minimal localStorage stand-in; the real one is not present under Node. */
 function fakeStorage(initial: Record<string, string> = {}): Storage {
@@ -109,5 +109,24 @@ describe('recordResult', () => {
     let data = recordResult(defaultSave(), 'w1-1', 0, 1000, 25, 1);
     data = recordResult(data, 'w1-2', 0, 1000, 15, 1);
     expect(data.totalBones).toBe(40);
+  });
+});
+
+describe('clear', () => {
+  it('wipes progress so the next load is a fresh start', () => {
+    save(recordResult(defaultSave(), 'w3-3', 9000, 30_000, 100, 3));
+    expect(load()).not.toEqual(defaultSave());
+
+    expect(clear()).toBe(true);
+    expect(load()).toEqual(defaultSave());
+  });
+
+  it('reports failure rather than throwing when storage is blocked', () => {
+    vi.stubGlobal('localStorage', {
+      removeItem() {
+        throw new Error('blocked');
+      },
+    } as unknown as Storage);
+    expect(clear()).toBe(false);
   });
 });
