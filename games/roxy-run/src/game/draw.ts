@@ -263,13 +263,13 @@ export class WorldRenderer {
         this.sprites.drawProp(ctx, 'goal', x, y + GOAL_ART_HALF_HEIGHT);
         break;
       case 'walker':
-        // The ducks face left by default, so flip when waddling right.
+        // The duck art faces right, so it is mirrored when heading left.
         this.sprites.drawPropCentred(
           ctx,
           Math.floor(entity.t / 12) % 2 === 0 ? 'walkerA' : 'walkerB',
           x,
           y,
-          entity.facing === 1,
+          entity.facing === -1,
         );
         break;
       case 'flyer':
@@ -278,7 +278,7 @@ export class WorldRenderer {
           Math.floor(entity.t / 8) % 2 === 0 ? 'flyerA' : 'flyerB',
           x,
           y,
-          entity.facing === 1,
+          entity.facing === -1,
         );
         break;
       case 'platformH':

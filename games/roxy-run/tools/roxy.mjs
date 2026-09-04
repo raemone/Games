@@ -15,8 +15,8 @@ const GROUND_Y = 30;
 const BELLY_Y = 20;
 
 /**
- * One leg: upper, lower, paw, and the feathering on the back of it.
- * `phase` swings it; `back` legs are drawn slightly heavier at the top.
+ * One leg. Retrievers are solid dogs, so these are deliberately chunky - thin
+ * legs plus a pale belly made her read as gaunt rather than as a puppy.
  */
 function leg(grid, hipX, hipY, phase, reach, lift, colour, feather) {
   const footX = hipX + Math.sin(phase) * reach;
@@ -24,78 +24,81 @@ function leg(grid, hipX, hipY, phase, reach, lift, colour, feather) {
   const kneeX = hipX + Math.sin(phase) * reach * 0.35;
   const kneeY = (hipY + footY) / 2 + 1;
 
-  // Feathering trails behind the upper leg, so it shows when the leg swings.
   if (feather) {
-    // A trailing fringe, not a whole cream leg - she has to stay golden.
-    grid.capsule(hipX - 1.4, hipY + 1, kneeX - 1.8, kneeY, 1.6, 'C');
+    grid.capsule(hipX - 1.6, hipY + 1, kneeX - 1.8, kneeY, 2, 'C');
   }
-  grid.capsule(hipX, hipY, kneeX, kneeY, 2.1, colour);
-  grid.capsule(kneeX, kneeY, footX, footY - 1, 1.5, colour);
-  grid.ellipse(footX + 0.5, footY, 2.3, 1.5, 'C');
+  grid.capsule(hipX, hipY, kneeX, kneeY, 2.7, colour);
+  grid.capsule(kneeX, kneeY, footX, footY - 1, 2.1, colour);
+  grid.ellipse(footX + 0.3, footY, 2.5, 1.6, 'C');
+  grid.ellipse(footX + 0.5, footY + 0.5, 1.5, 0.9, 'c');
 }
 
 /**
- * The plumed tail. Carried up and back in an arc rather than level, because a
- * level tail disappears behind the body at this size and the plume is the most
- * recognisable part of the breed's silhouette.
+ * The plumed tail. Carried swept back and a little up: level, it disappears
+ * behind the body at this size, and the plume is the most recognisable part of
+ * the breed's silhouette.
  */
 function tail(grid, wag) {
   const lift = Math.sin(wag) * 1.2;
-  // Swept back and only a little up. Any higher and it reads as a flagpole
-  // rather than a tail, and it clips the top of the cell.
-  grid.capsule(8.5, 15.5, 5, 13 - lift * 0.5, 2.2, 'M');
-  grid.capsule(5, 13 - lift * 0.5, 2.4, 10.5 - lift, 2.4, 'L');
-  grid.ellipse(2.4, 10.5 - lift, 2.6, 2.4, 'L');
+  grid.capsule(9, 15, 5, 12.5 - lift * 0.5, 2.8, 'M');
+  grid.capsule(5, 12.5 - lift * 0.5, 2.4, 10 - lift, 2.7, 'M');
+  grid.ellipse(2.6, 10 - lift, 2.8, 2.6, 'L');
   // The long fringe hanging beneath it.
-  grid.capsule(7.5, 17, 4, 15 - lift * 0.4, 2.2, 'C');
-  grid.capsule(4, 15 - lift * 0.4, 2.2, 13 - lift, 2, 'C');
+  grid.capsule(8, 17.5, 4.2, 15 - lift * 0.4, 2.2, 'C');
+  grid.capsule(4.2, 15 - lift * 0.4, 2.6, 12.8 - lift, 2, 'C');
 }
 
 function head(grid, dy, blink, earSwing) {
-  // Skull, then a long straight muzzle - about as long again as the skull is
-  // wide, which is what stops a dog reading as a cat. The muzzle is gold on
-  // top with only the jaw in cream, so the head stays golden overall.
-  grid.ellipse(24.5, 8.5 + dy, 4.6, 4.5, 'M');
-  grid.capsule(26, 10.5 + dy, 30.5, 11 + dy, 2.4, 'M');
-  grid.capsule(27, 12.5 + dy, 30.5, 12.5 + dy, 1.3, 'C');
+  // A broad round skull and a short blunt muzzle. The muzzle is gold with only
+  // a small cream chin - as a pale slab it looked like an exposed jaw.
+  grid.ellipse(24.4, 9 + dy, 4.5, 4.5, 'M');
+  grid.ellipse(24.2, 6.6 + dy, 3, 1.4, 'L'); // lit top of the skull
+  // A long straight muzzle, in gold. Short and blunt it read as a bear cub;
+  // pale, it read as an exposed jaw.
+  grid.capsule(26.2, 11.4 + dy, 29.2, 11.6 + dy, 2.4, 'M');
 
-  // Ear: set high, hanging, wide at the bottom.
-  grid.capsule(22.5, 5.5 + dy, 21.5 + earSwing, 12 + dy, 2.7, 'D');
-  grid.ellipse(21.5 + earSwing, 13 + dy, 2.5, 2.2, 'D');
+  // Ear: set high, hanging, and thick with fur.
+  grid.capsule(23, 6 + dy, 22 + earSwing, 13 + dy, 3, 'D');
+  grid.ellipse(22 + earSwing, 14 + dy, 2.8, 2.4, 'D');
 
-  grid.ellipse(31.5, 10.5 + dy, 1.5, 1.4, 'N'); // nose
+  grid.ellipse(30, 11.3 + dy, 1.7, 1.6, 'N'); // nose
   if (blink) {
-    grid.rect(25, 7 + dy, 3, 1, 'o');
+    grid.rect(25, 8 + dy, 3, 1, 'o');
   } else {
-    grid.ellipse(26, 7 + dy, 1.5, 1.6, 'E');
-    grid.set(25.5, 6.5 + dy, 'W');
+    grid.ellipse(25.9, 8.2 + dy, 1.2, 1.3, 'E');
+    grid.set(25.5, 7.6 + dy, 'W');
   }
-  grid.set(30, 13.5 + dy, 'o'); // mouth line
-  grid.set(29, 13 + dy, 'o');
+  grid.set(28.6, 13.6 + dy, 'o'); // mouth line
 }
 
 function body(grid, dy) {
-  // Long level back, deep chest, tucked waist.
-  grid.ellipse(15, 16.5 + dy, 10, 4.6, 'M');
-  grid.ellipse(20, 16.5 + dy, 5.2, 5, 'M'); // chest
-  grid.ellipse(9.5, 16.5 + dy, 5.4, 4.4, 'M'); // haunch
-  grid.capsule(21.5, 14 + dy, 23.5, 10 + dy, 3, 'M'); // neck
+  // A solid, deep-chested dog. The old build was thin enough to read as ribs.
+  grid.ellipse(14, 17.5 + dy, 10, 6.4, 'M');
+  grid.ellipse(20, 17 + dy, 5.6, 6, 'M'); // chest
+  grid.ellipse(8.5, 17 + dy, 6, 6, 'M'); // haunch
+  grid.capsule(21, 14 + dy, 24, 10.5 + dy, 3.6, 'M'); // neck
 
-  // Cream feathering: a fringe along the underside rather than a slab of pale
-  // belly, or she stops reading as golden at all.
-  grid.ellipse(15, BELLY_Y - 1.5 + dy, 8, 1.7, 'C');
-  grid.ellipse(20.5, 19 + dy, 3, 2.2, 'C');
-  grid.ellipse(23, 14 + dy, 1.8, 2, 'C'); // throat ruff
+  // A narrow sunlit rim along the spine only. As a broad band it washed the
+  // whole dog out to one pale colour, and she stopped reading as golden.
+  grid.ellipse(14, 12.4 + dy, 7.6, 1.3, 'L');
+
+  // Feathering: a thin fringe under the belly and a small chest ruff.
+  grid.ellipse(14, BELLY_Y + dy, 7.4, 1.4, 'C');
+  grid.ellipse(20.4, 20.4 + dy, 3, 1.9, 'C');
+  // Shade under the jaw so the head reads separately from the shoulders.
+  grid.ellipse(21.5, 15.5 + dy, 2.6, 1.6, 'D');
 }
 
 /** The collar goes on last, or the head and ruff draw straight over it. */
 function collar(grid, dy) {
-  grid.capsule(22, 12 + dy, 23.3, 15 + dy, 1.3, 'R');
-  grid.set(23, 15.5 + dy, 'Y'); // tag
+  // A slim band at the base of the neck. Thick and high it sat over her face
+  // and read as a lolling tongue.
+  grid.capsule(18.8, 16.2 + dy, 21.6, 13.4 + dy, 1.3, 'R');
+  grid.capsule(19.2, 16.8 + dy, 22, 14 + dy, 0.6, 'r');
+  grid.ellipse(19.8, 17.2 + dy, 1, 1, 'Y'); // tag
 }
 
 function finish(grid) {
-  grid.shadeBelow('M', 'D', 1);
   grid.outline('o');
   return grid;
 }
@@ -113,13 +116,13 @@ function pose({
 }) {
   const grid = new Grid(CELL, CELL);
   // Far-side legs first, in shade, so the near pair reads as in front.
-  leg(grid, 9.5, BELLY_Y + bodyDy, backPhase + Math.PI, reach, lift, 'D', false);
+  leg(grid, 8.5, BELLY_Y + bodyDy, backPhase + Math.PI, reach, lift, 'D', false);
   leg(grid, 19.5, BELLY_Y + bodyDy, frontPhase + Math.PI, reach, lift, 'D', false);
   tail(grid, wag);
   body(grid, bodyDy);
   head(grid, bodyDy, blink, earSwing);
   collar(grid, bodyDy);
-  leg(grid, 10.5, BELLY_Y + 1 + bodyDy, backPhase, reach, lift, 'M', true);
+  leg(grid, 9.5, BELLY_Y + 1 + bodyDy, backPhase, reach, lift, 'M', true);
   leg(grid, 20.5, BELLY_Y + 1 + bodyDy, frontPhase, reach, lift, 'M', true);
   return finish(grid);
 }
@@ -172,18 +175,18 @@ function hurtFrame() {
   tail(grid, 2.6);
   body(grid, 0);
 
-  grid.ellipse(24.5, 8.5, 4.6, 4.5, 'M');
-  grid.capsule(26, 10.5, 30.5, 11, 2.4, 'M');
-  grid.capsule(27, 12.5, 30.5, 12.5, 1.3, 'C');
-  grid.capsule(22.5, 4.5, 21, 11, 2.7, 'D');
-  grid.ellipse(31.5, 10.5, 1.5, 1.4, 'N');
+  grid.ellipse(24.4, 9, 4.5, 4.5, 'M');
+  grid.ellipse(24.2, 6.6, 3, 1.4, 'L');
+  grid.capsule(26.2, 11.4, 29.2, 11.6, 2.4, 'M');
+  grid.capsule(23, 5, 21.6, 12, 3, 'D');
+  grid.ellipse(30, 11.3, 1.7, 1.6, 'N');
   collar(grid, 0);
   // Screwed-shut eye.
-  grid.set(25, 6, 'o');
-  grid.set(27, 6, 'o');
-  grid.set(26, 7, 'o');
-  grid.set(25, 8, 'o');
-  grid.set(27, 8, 'o');
+  grid.set(25.5, 7, 'o');
+  grid.set(27.5, 7, 'o');
+  grid.set(26.5, 8, 'o');
+  grid.set(25.5, 9, 'o');
+  grid.set(27.5, 9, 'o');
 
   leg(grid, 10.5, BELLY_Y + 1, 2.2, 6, 5, 'M', true);
   leg(grid, 20.5, BELLY_Y + 1, -2.2, 6, 5, 'M', true);

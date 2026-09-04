@@ -7,19 +7,33 @@ function finish(grid) {
   return grid;
 }
 
-/** The bone Roxy collects - this game's ring. */
+/**
+ * The bone Roxy collects - this game's ring.
+ *
+ * Hand-authored rather than composed from ellipses: at 16px a bone lives or
+ * dies on the waist between its four knobs, and shapes fat enough to read as
+ * knobs always merged into one blob. Three tones, lit from the top left, so it
+ * pops against grass, snow and sand alike.
+ */
+const BONE_ROWS = [
+  '.WWWWW....WWWWW.',
+  'WWWWWW....WWWWWW',
+  'cccccc....cccccc',
+  'cccccc....cccccc',
+  'cccccccccccccccc',
+  'cccccccccccccccc',
+  'cccccccccccccccc',
+  'cccccc....cccccc',
+  'cccccc....cccccc',
+  'CCCCCC....CCCCCC',
+  '.CCCCC....CCCCC.',
+];
+
 export function bone() {
-  const g = new Grid(16, 16);
-  g.capsule(4, 8, 12, 8, 2, 'C');
-  for (const [x, y] of [
-    [4, 6],
-    [4, 10],
-    [12, 6],
-    [12, 10],
-  ]) {
-    g.ellipse(x, y, 2.4, 2.4, 'C');
-  }
-  g.ellipse(6, 6, 1.2, 1, 'W'); // highlight
+  // Wider than a tile, with a straight three-row shaft between the knobs. A
+  // pinched waist reads as a bowtie; the flat middle is what says "bone".
+  const g = new Grid(18, 16);
+  g.stamp(BONE_ROWS, 1, 2);
   return finish(g);
 }
 

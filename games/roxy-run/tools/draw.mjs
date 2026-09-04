@@ -108,6 +108,21 @@ export class Grid {
     return out;
   }
 
+  /**
+   * Stamp hand-authored rows of palette keys into the grid at (dx, dy).
+   * Shape functions are the right tool for anything organic, but a small
+   * symmetric object like a bone needs exact control of every pixel.
+   */
+  stamp(rows, dx, dy) {
+    for (let y = 0; y < rows.length; y++) {
+      const row = rows[y];
+      for (let x = 0; x < row.length; x++) {
+        const cell = row[x];
+        if (cell !== '.') this.set(dx + x, dy + y, cell);
+      }
+    }
+  }
+
   /** Copy this grid into another, mirrored horizontally if asked. */
   blitInto(target, dx, dy, flip = false) {
     for (let y = 0; y < this.height; y++) {

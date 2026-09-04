@@ -6,12 +6,16 @@ export const PAL = {
   D: '#a86c28', // dark gold (ears, shading)
   M: '#d99a45', // mid gold (body)
   L: '#f2c268', // light gold (highlights)
-  C: '#fbe6c0', // cream (muzzle, chest, paws)
+  // Feathering is a warm light gold, not an off-white. Near-white against gold
+  // reads as exposed bone rather than as fur, which made her look ill.
+  C: '#f4d69c', // light gold feathering
+  c: '#fbead0', // pale cream, for small accents only - chin, paw tips
   E: '#241708', // eye
   W: '#ffffff', // eye highlight
   N: '#2b1b10', // nose
   T: '#e8687a', // tongue
-  R: '#d94b4b', // collar
+  R: '#e8749c', // collar - pink, and a full band rather than a slash at the throat
+  r: '#c04f76', // collar shadow
   Y: '#ffd88a', // collar tag / sparkle
   S: '#8a93a6', // stone and metal
   // Ducks. White everywhere - they are the same bird in every world.
