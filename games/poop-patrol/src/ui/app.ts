@@ -20,12 +20,14 @@ import { rankFor } from '../core/ranks';
 import { reduce } from '../core/reducer';
 import type { Action } from '../core/reducer';
 import { careerPoints, familyGoalProgress } from '../core/scoring';
+import { affordableIds, newlyAffordable, rewardById } from '../core/rewards';
 import { clear as clearStorage, defaultSave, importJson, load, save as persist } from '../core/storage';
 import { Sound } from './audio';
 import { Effects } from './effects';
 import { clear, el, requireElement, show } from './dom';
 import { poopWord } from './format';
 import { HomeView } from './home';
+import { buildRewards } from './rewards';
 import { buildSettings } from './settings';
 import { SetupView } from './setup';
 import type { PersonDraft } from './setup';
@@ -37,7 +39,7 @@ const UNDO_VISIBLE_MS = 6000;
 const UNDO_DEPTH = 20;
 const ROLLOVER_CHECK_MS = 60_000;
 
-type Sheet = 'none' | 'settings' | 'trophies';
+type Sheet = 'none' | 'settings' | 'trophies' | 'rewards';
 
 interface UndoEntry {
   readonly day: DayKey;
@@ -129,6 +131,8 @@ export class App {
     const inner = el('div', { class: 'sheet-inner' });
     if (this.sheet === 'settings') {
       inner.append(buildSettings(this, this.editingPerson));
+    } else if (this.sheet === 'rewards') {
+      inner.append(buildRewards(this));
     } else if (this.sheetPerson) {
       inner.append(buildTrophies(this, this.sheetPerson));
     }
@@ -209,6 +213,7 @@ export class App {
     if (target === previous) return;
 
     const badgesBefore = earnedBadgeIds(this.save, person.id, this.today);
+    const affordableBefore = affordableIds(this.save, person.id, this.today);
     const rankBefore = rankFor(careerPoints(this.save.log, person.id));
     const goalBefore = familyGoalProgress(this.save.log, this.weekStart, this.save.settings.weeklyGoal);
 
@@ -232,7 +237,7 @@ export class App {
     }
 
     this.render();
-    this.celebrate(person, badgesBefore, rankBefore.title, goalBefore.met);
+    this.celebrate(person, badgesBefore, affordableBefore, rankBefore.title, goalBefore.met);
     this.home.popCount(person.id, this.effects);
   }
 
@@ -247,6 +252,7 @@ export class App {
   private celebrate(
     person: Person,
     badgesBefore: ReadonlySet<string>,
+    affordableBefore: ReadonlySet<string>,
     rankBefore: string,
     goalBefore: boolean,
   ): void {
@@ -255,6 +261,12 @@ export class App {
 
     for (const badge of fresh) {
       this.effects.toast(badge.emoji, `${person.name}: ${badge.name}`, badge.blurb);
+    }
+
+    // Something new they can actually spend on is the most motivating news
+    // there is, so it gets a card of its own.
+    for (const reward of newlyAffordable(affordableBefore, affordableIds(this.save, person.id, this.today))) {
+      this.effects.toast(reward.emoji, `${person.name} can claim ${reward.name}`, reward.blurb);
     }
 
     const rankAfter = rankFor(careerPoints(this.save.log, person.id));
@@ -276,6 +288,41 @@ export class App {
       this.sound.badge();
       this.effects.confetti();
     }
+  }
+
+  // ---------- rewards ----------
+
+  claimReward(person: Person, rewardId: string): void {
+    const reward = rewardById(rewardId);
+    const before = this.save;
+    this.commit({ kind: 'claimReward', rewardId, personId: person.id });
+    if (this.save === before) return;
+
+    this.sound.goal();
+    this.effects.confetti();
+    if (reward) {
+      this.effects.toast(reward.emoji, `${person.name} claimed ${reward.name}`, 'Enjoy!');
+      this.announce(`${person.name} claimed ${reward.name}`);
+    }
+    this.render();
+  }
+
+  unclaimReward(person: Person, rewardId: string): void {
+    const reward = rewardById(rewardId);
+    if (reward && !window.confirm(`Give back ${person.name}'s ${reward.name}?`)) return;
+
+    const before = this.save;
+    this.commit({ kind: 'unclaimReward', rewardId, personId: person.id });
+    if (this.save === before) return;
+
+    this.sound.undo();
+    this.announce(`${person.name} gave back ${reward?.name ?? 'a reward'}`);
+    this.render();
+  }
+
+  openRewards(): void {
+    this.sheet = 'rewards';
+    this.render();
   }
 
   // ---------- undo ----------

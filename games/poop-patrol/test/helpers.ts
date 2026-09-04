@@ -1,18 +1,24 @@
 import { vi } from 'vitest';
 import { defaultSettings } from '../src/core/model';
-import type { Log, Person, SaveData } from '../src/core/model';
+import type { Claim, Log, Person, SaveData } from '../src/core/model';
 import { SAVE_VERSION } from '../src/core/storage';
 
 export function person(id: string, name = id.toUpperCase()): Person {
   return { id, name, emoji: '🐶', color: '#ffd88a', retired: false };
 }
 
-export function saveWith(people: readonly Person[], log: Log, weeklyGoal = 25): SaveData {
+export function saveWith(
+  people: readonly Person[],
+  log: Log,
+  weeklyGoal = 25,
+  claims: readonly Claim[] = [],
+): SaveData {
   return {
     version: SAVE_VERSION,
     people,
     nextPersonId: people.length + 1,
     log,
+    claims,
     settings: { ...defaultSettings(), weeklyGoal },
   };
 }

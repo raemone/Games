@@ -18,6 +18,7 @@ import {
   personById,
 } from '../core/model';
 import type { Person, PersonId } from '../core/model';
+import { MAX_PRICE, MIN_PRICE, POINTS_REWARDS, REWARDS, priceOf } from '../core/rewards';
 import { exportJson } from '../core/storage';
 import type { App } from './app';
 import { el } from './dom';
@@ -91,6 +92,8 @@ export function buildSettings(app: App, editing: PersonId | null): HTMLElement {
         text: 'Your device’s reduced-motion setting always wins over these.',
       }),
     ]),
+
+    buildPricesSection(app),
 
     buildBackupSection(app),
 
@@ -182,6 +185,62 @@ function buildEditSection(app: App, personId: PersonId): HTMLElement {
         on: { click: () => app.editPerson(null) },
       }),
     ]),
+  ]);
+}
+
+/**
+ * Prices are meant to be tuned once you see how fast the kids actually earn,
+ * so they live here rather than in the code.
+ */
+function buildPricesSection(app: App): HTMLElement {
+  const rows = POINTS_REWARDS.map((reward) => {
+    const input = el('input', {
+      attrs: {
+        type: 'number',
+        min: String(MIN_PRICE),
+        max: String(MAX_PRICE),
+        inputmode: 'numeric',
+        'aria-label': `Price of ${reward.name} in points`,
+      },
+      on: {
+        change: () => {
+          const wanted = Number(input.value);
+          if (!Number.isFinite(wanted)) return;
+          app.updateSettings({
+            ...app.save.settings,
+            rewardPrices: { ...app.save.settings.rewardPrices, [reward.id]: wanted },
+          });
+        },
+      },
+    });
+    input.value = String(priceOf(app.save.settings, reward));
+
+    return el('label', { class: 'field price-row' }, [
+      el('span', { text: `${reward.emoji}  ${reward.name}` }),
+      input,
+    ]);
+  });
+
+  const streakLines = REWARDS.filter((reward) => reward.kind === 'streak').map((reward) =>
+    el('div', {
+      class: 'meta',
+      text:
+        reward.kind === 'streak'
+          ? `${reward.emoji}  ${reward.name} - ${String(reward.streakDays)}-day streak, once ever`
+          : '',
+    }),
+  );
+
+  return el('section', { class: 'card' }, [
+    el('h2', { text: 'Reward prices' }),
+    ...rows,
+    el('p', {
+      class: 'empty',
+      text: 'With a streak going, a child earns roughly 170 points a week at one pickup a day and 310 at three.',
+    }),
+    el('h2', { text: 'Streak prizes' }),
+    ...streakLines,
+    el('p', { class: 'empty', text: 'These two are not for sale and cannot be re-priced.' }),
   ]);
 }
 

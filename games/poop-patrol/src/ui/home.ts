@@ -14,6 +14,7 @@ import { MAX_PER_DAY, activePeople, countFor, dayTotal } from '../core/model';
 import type { Person } from '../core/model';
 import { emptyLine, goalLine, roxyMood } from '../core/quips';
 import { familyGoalProgress, scoreDay } from '../core/scoring';
+import { pointsBalance, readyCount } from '../core/rewards';
 import { streakFor } from '../core/streaks';
 import type { App } from './app';
 import { clear, el, show } from './dom';
@@ -27,6 +28,7 @@ interface PersonRow {
   readonly minus: HTMLButtonElement;
   readonly flame: HTMLElement;
   readonly score: HTMLElement;
+  readonly wallet: HTMLButtonElement;
 }
 
 export class HomeView {
@@ -132,6 +134,12 @@ export class HomeView {
         },
       }),
       el('button', {
+        class: 'icon-btn gift',
+        text: '🎁',
+        attrs: { 'aria-label': 'Rewards' },
+        on: { click: () => this.app.openRewards() },
+      }),
+      el('button', {
         class: 'icon-btn',
         text: '⚙️',
         attrs: { 'aria-label': 'Settings and roster' },
@@ -229,6 +237,11 @@ export class HomeView {
 
     const flame = el('span', { class: 'flame' });
     const score = el('span');
+    const wallet = el('button', {
+      class: 'wallet-chip',
+      attrs: { 'aria-label': `${person.name}'s rewards` },
+      on: { click: () => this.app.openRewards() },
+    });
 
     const count = el('button', {
       class: 'count',
@@ -270,12 +283,12 @@ export class HomeView {
       avatar,
       el('div', { class: 'who' }, [
         el('div', { class: 'name', text: person.name }),
-        el('div', { class: 'meta' }, [flame, score]),
+        el('div', { class: 'meta' }, [flame, score, wallet]),
       ]),
       el('div', { class: 'stepper' }, [minus, count, input, plus]),
     ]);
 
-    return { root, count, input, minus, flame, score };
+    return { root, count, input, minus, flame, score, wallet };
   }
 
   private startEditing(personId: string): void {
@@ -393,6 +406,19 @@ export class HomeView {
 
       const bonus = score.bonusPoints > 0 ? ` (+${String(score.bonusPoints)} streak)` : '';
       row.score.textContent = score.count > 0 ? `· ${points(score.points)} pts${bonus}` : '';
+
+      // The wallet is the spendable balance, not the leaderboard score, so it
+      // gets a purse rather than a star. A gift means something is claimable.
+      const balance = pointsBalance(this.app.save, person.id);
+      const ready = readyCount(this.app.save, person.id, this.app.today);
+      row.wallet.textContent = ready > 0 ? `🎁 ${points(balance)}` : `👛 ${points(balance)}`;
+      row.wallet.classList.toggle('ready', ready > 0);
+      row.wallet.setAttribute(
+        'aria-label',
+        ready > 0
+          ? `${person.name} has ${points(balance)} points and ${String(ready)} rewards to claim`
+          : `${person.name} has ${points(balance)} points to spend`,
+      );
     }
   }
 

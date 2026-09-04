@@ -27,10 +27,11 @@ import {
   firstColor,
   firstEmoji,
 } from './model';
-import type { Log, Person, PersonId, SaveData, Settings } from './model';
+import type { Claim, Log, Person, PersonId, SaveData, Settings } from './model';
+import { MAX_PRICE, MIN_PRICE, POINTS_REWARDS, REWARDS, defaultPrices } from './rewards';
 
 const KEY = 'poop-patrol:save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function defaultSave(): SaveData {
   return {
@@ -38,6 +39,7 @@ export function defaultSave(): SaveData {
     people: [],
     nextPersonId: 1,
     log: {},
+    claims: [],
     settings: defaultSettings(),
   };
 }
@@ -119,6 +121,56 @@ function migrateLog(raw: unknown, knownIds: ReadonlySet<PersonId>): Log {
   return log;
 }
 
+/**
+ * Claims naming a person or a reward that no longer exists are dropped, the
+ * same way dangling log entries are - a claim nothing can resolve would break
+ * every lookup that assumes the pair is real.
+ */
+function migrateClaims(raw: unknown, knownIds: ReadonlySet<PersonId>): readonly Claim[] {
+  if (!Array.isArray(raw)) return [];
+
+  const rewardIds = new Set(REWARDS.map((reward) => reward.id));
+  const claims: Claim[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+
+    const personId = typeof record.personId === 'string' ? record.personId : '';
+    const rewardId = typeof record.rewardId === 'string' ? record.rewardId : '';
+    const day = record.day;
+
+    if (!knownIds.has(personId) || !rewardIds.has(rewardId) || !isDayKey(day)) continue;
+
+    // One claim per person, reward and day; a duplicate is a double-tap.
+    const key = `${personId}|${rewardId}|${day}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // A cost that cannot be read is treated as free rather than dropped: losing
+    // the record of a lunch is worse than mis-stating what it cost.
+    claims.push({ personId, rewardId, day, cost: Math.max(0, Math.floor(num(record.cost, 0))) });
+  }
+
+  return claims;
+}
+
+/** Unknown reward ids are dropped and missing ones fall back to the default. */
+function migratePrices(raw: unknown): Record<string, number> {
+  const prices = defaultPrices();
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return prices;
+
+  const known = new Set(POINTS_REWARDS.map((reward) => reward.id));
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!known.has(id)) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    prices[id] = clamp(Math.round(value), MIN_PRICE, MAX_PRICE);
+  }
+
+  return prices;
+}
+
 function migrateSettings(raw: unknown): Settings {
   const base = defaultSettings();
   if (typeof raw !== 'object' || raw === null) return base;
@@ -133,6 +185,7 @@ function migrateSettings(raw: unknown): Settings {
     ),
     soundOn: bool(record.soundOn, base.soundOn),
     confettiOn: bool(record.confettiOn, base.confettiOn),
+    rewardPrices: migratePrices(record.rewardPrices),
   };
 }
 
@@ -154,6 +207,7 @@ export function migrate(raw: unknown): SaveData {
     // Repair a counter that would hand out an id already in use.
     nextPersonId: Math.max(nextPersonId, Math.floor(num(input.nextPersonId, 1)), 1),
     log: migrateLog(input.log, knownIds),
+    claims: migrateClaims(input.claims, knownIds),
     settings: migrateSettings(input.settings),
   };
 }

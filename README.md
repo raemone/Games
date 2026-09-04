@@ -107,11 +107,50 @@ identical work see identical medals, and below the medals everyone who scored
 gets a star — there is no last place. The family goal sits above the
 leaderboard on purpose: the team win is the main event.
 
+### What the points buy
+
+Points are a wallet as well as a score. The three smaller rewards are bought
+with them, over and over:
+
+| | Reward | Price |
+|---|---|---|
+| 📺 | 1 hour of screen time — TV, Switch or tablet | 100 pts |
+| 🍗 | Chick-fil-A lunch | 400 pts |
+| 🕹️ | Grandparents' arcade basement | 800 pts |
+
+The two big ones are not for sale. They need a streak that long and can only be
+won once:
+
+| | Reward | Needs |
+|---|---|---|
+| 📱 | A cellphone | a 100-day streak |
+| 🎮 | A Nintendo Switch 2 | a 200-day streak |
+
+The distinction that matters is between points **earned** and points **spent**.
+Earned points are the score — they drive the leaderboard and the career rank and
+they never go down. The balance is earned minus spent, and that is what the shop
+charges. If redeeming a lunch cost a child their place on the leaderboard, the
+sensible move would be to never redeem anything.
+
+Prices are calibrated against what the scoring actually pays: with a streak
+going, a child earns roughly 170 points a week at one pickup a day and 310 at
+three. So screen time lands every few days, lunch is a fortnight's work, and the
+arcade is a monthly treat. A single day of pickups is worth 10 to 30 points, so
+it still buys nothing at all — which was the rule the family set. Every price is
+editable in settings, because you will want to tune them once you see how fast
+the kids really earn.
+
+A claim records what it actually cost, so re-pricing a reward later never
+rewrites what past redemptions were worth. The streak prizes are measured
+against the best run ever reached, so a hundred-day streak still counts after it
+eventually breaks.
+
 ### Where things live
 
 ```
 games/poop-patrol/
-  src/core/   dates, save data, reducer, scoring, streaks, leaderboard, badges
+  src/core/   dates, save data, reducer, scoring, streaks, leaderboard,
+              badges, rewards
   src/ui/     screens, rendering, sound and animation
   tools/      the icon generator: pixel data in, PNGs out
 ```

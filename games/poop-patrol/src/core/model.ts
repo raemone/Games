@@ -14,6 +14,7 @@
  */
 
 import type { DayKey } from './dates';
+import { defaultPrices } from './rewards';
 
 export type PersonId = string;
 
@@ -36,6 +37,21 @@ export interface Settings {
   readonly weeklyGoal: number;
   readonly soundOn: boolean;
   readonly confettiOn: boolean;
+  /** Points price per reward id, overriding the built-in default. */
+  readonly rewardPrices: Readonly<Record<string, number>>;
+}
+
+/**
+ * A reward handed over. This is the one thing that is stored rather than
+ * derived: giving somebody a lunch is an event in the world, and no amount of
+ * reading the log can tell you whether it happened.
+ */
+export interface Claim {
+  readonly rewardId: string;
+  readonly personId: PersonId;
+  readonly day: DayKey;
+  /** What it actually cost, so re-pricing later never rewrites the past. */
+  readonly cost: number;
 }
 
 export interface SaveData {
@@ -44,6 +60,7 @@ export interface SaveData {
   /** Ids come from this counter and are never reused, even after a delete. */
   readonly nextPersonId: number;
   readonly log: Log;
+  readonly claims: readonly Claim[];
   readonly settings: Settings;
 }
 
@@ -112,6 +129,7 @@ export function defaultSettings(): Settings {
     weeklyGoal: DEFAULT_WEEKLY_GOAL,
     soundOn: true,
     confettiOn: true,
+    rewardPrices: defaultPrices(),
   };
 }
 

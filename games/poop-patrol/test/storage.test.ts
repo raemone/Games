@@ -179,6 +179,87 @@ describe('migrate', () => {
   });
 });
 
+describe('migrating claims', () => {
+  it('defaults an older save that has never heard of claims', () => {
+    const migrated = migrate({ people: [{ id: 'p1', name: 'Ana' }], version: 1 });
+    expect(migrated.claims).toEqual([]);
+    expect(migrated.version).toBe(SAVE_VERSION);
+  });
+
+  it('keeps a well-formed claim', () => {
+    const migrated = migrate({
+      people: [{ id: 'p1', name: 'Ana' }],
+      claims: [{ personId: 'p1', rewardId: 'screen-hour', day: '2026-09-01', cost: 100 }],
+    });
+    expect(migrated.claims).toEqual([
+      { personId: 'p1', rewardId: 'screen-hour', day: '2026-09-01', cost: 100 },
+    ]);
+  });
+
+  it('drops claims naming a person or a reward that does not exist', () => {
+    const migrated = migrate({
+      people: [{ id: 'p1', name: 'Ana' }],
+      claims: [
+        { personId: 'ghost', rewardId: 'screen-hour', day: '2026-09-01', cost: 100 },
+        { personId: 'p1', rewardId: 'a-pony', day: '2026-09-01', cost: 100 },
+        { personId: 'p1', rewardId: 'screen-hour', day: 'never', cost: 100 },
+      ],
+    });
+    expect(migrated.claims).toEqual([]);
+  });
+
+  it('de-duplicates a double-tapped claim', () => {
+    const one = { personId: 'p1', rewardId: 'screen-hour', day: '2026-09-01', cost: 100 };
+    const migrated = migrate({ people: [{ id: 'p1', name: 'Ana' }], claims: [one, { ...one }] });
+    expect(migrated.claims).toHaveLength(1);
+  });
+
+  it('treats an unreadable cost as free rather than losing the record', () => {
+    const migrated = migrate({
+      people: [{ id: 'p1', name: 'Ana' }],
+      claims: [{ personId: 'p1', rewardId: 'screen-hour', day: '2026-09-01', cost: 'lots' }],
+    });
+    expect(migrated.claims[0]).toMatchObject({ cost: 0 });
+  });
+
+  it('ignores a claims list that is not a list', () => {
+    expect(migrate({ people: [{ id: 'p1', name: 'Ana' }], claims: 'nope' }).claims).toEqual([]);
+  });
+});
+
+describe('migrating reward prices', () => {
+  it('fills in the built-in defaults when settings say nothing', () => {
+    expect(migrate({}).settings.rewardPrices).toEqual({
+      'screen-hour': 100,
+      'chick-fil-a': 400,
+      'arcade-basement': 800,
+    });
+  });
+
+  it('honours a stored override and keeps the rest at default', () => {
+    const prices = migrate({ settings: { rewardPrices: { 'screen-hour': 250 } } }).settings.rewardPrices;
+    expect(prices['screen-hour']).toBe(250);
+    expect(prices['chick-fil-a']).toBe(400);
+  });
+
+  it('clamps and cleans what it finds', () => {
+    const prices = migrate({
+      settings: { rewardPrices: { 'screen-hour': -5, 'chick-fil-a': 1e9, 'arcade-basement': 'free' } },
+    }).settings.rewardPrices;
+    expect(prices['screen-hour']).toBe(1);
+    expect(prices['chick-fil-a']).toBe(100000);
+    expect(prices['arcade-basement']).toBe(800);
+  });
+
+  it('drops a price for a reward that is not for sale, or does not exist', () => {
+    const prices = migrate({
+      settings: { rewardPrices: { 'switch-2': 5, nonsense: 5 } },
+    }).settings.rewardPrices;
+    expect(prices['switch-2']).toBeUndefined();
+    expect(prices['nonsense']).toBeUndefined();
+  });
+});
+
 describe('export and import', () => {
   it('round-trips', () => {
     const data = saveWith([person('p1', 'Ana')], { '2026-09-01': { p1: 3 } });

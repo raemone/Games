@@ -20,7 +20,8 @@ import {
   firstColor,
   firstEmoji,
 } from './model';
-import type { Log, Person, PersonId, SaveData, Settings } from './model';
+import type { Claim, Log, Person, PersonId, SaveData, Settings } from './model';
+import { MAX_PRICE, MIN_PRICE, canClaim, costOf } from './rewards';
 
 export type Action =
   | { readonly kind: 'adjustCount'; readonly day: DayKey; readonly personId: PersonId; readonly delta: number }
@@ -35,11 +36,23 @@ export type Action =
     }
   | { readonly kind: 'retirePerson'; readonly personId: PersonId; readonly retired: boolean }
   | { readonly kind: 'deletePerson'; readonly personId: PersonId }
+  | { readonly kind: 'claimReward'; readonly rewardId: string; readonly personId: PersonId }
+  | { readonly kind: 'unclaimReward'; readonly rewardId: string; readonly personId: PersonId }
   | { readonly kind: 'setSettings'; readonly settings: Settings }
   | { readonly kind: 'replaceAll'; readonly save: SaveData };
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
+}
+
+/** Prices are typed by a parent, so every one of them is clamped. */
+function cleanPrices(prices: Readonly<Record<string, number>>): Record<string, number> {
+  const cleaned: Record<string, number> = {};
+  for (const [id, value] of Object.entries(prices)) {
+    if (!Number.isFinite(value)) continue;
+    cleaned[id] = clamp(Math.round(value), MIN_PRICE, MAX_PRICE);
+  }
+  return cleaned;
 }
 
 function cleanName(name: string): string {
@@ -141,7 +154,30 @@ function deletePerson(save: SaveData, personId: PersonId): SaveData {
     // The id is not reused: nextPersonId only ever goes up.
     people: save.people.filter((person) => person.id !== personId),
     log,
+    claims: save.claims.filter((claim) => claim.personId !== personId),
   };
+}
+
+/** Hand a reward over. Refused unless it is claimable today. */
+function claimReward(save: SaveData, personId: PersonId, rewardId: string, today: DayKey): SaveData {
+  if (!canClaim(save, personId, today, rewardId)) return save;
+
+  const claim: Claim = { rewardId, personId, day: today, cost: costOf(save, rewardId) };
+  return { ...save, claims: [...save.claims, claim] };
+}
+
+/**
+ * Take back the most recent claim of that reward, for a mis-tap. Without this
+ * a stray finger costs somebody a Chick-fil-A lunch until Monday.
+ */
+function unclaimReward(save: SaveData, personId: PersonId, rewardId: string): SaveData {
+  let lastIndex = -1;
+  save.claims.forEach((claim, index) => {
+    if (claim.personId === personId && claim.rewardId === rewardId) lastIndex = index;
+  });
+  if (lastIndex < 0) return save;
+
+  return { ...save, claims: save.claims.filter((_claim, index) => index !== lastIndex) };
 }
 
 export function reduce(save: SaveData, action: Action, today: DayKey): SaveData {
@@ -160,6 +196,10 @@ export function reduce(save: SaveData, action: Action, today: DayKey): SaveData 
       return retirePerson(save, action.personId, action.retired);
     case 'deletePerson':
       return deletePerson(save, action.personId);
+    case 'claimReward':
+      return claimReward(save, action.personId, action.rewardId, today);
+    case 'unclaimReward':
+      return unclaimReward(save, action.personId, action.rewardId);
     case 'setSettings':
       return {
         ...save,
@@ -167,6 +207,7 @@ export function reduce(save: SaveData, action: Action, today: DayKey): SaveData 
           ...action.settings,
           dogName: cleanName(action.settings.dogName) || save.settings.dogName,
           weeklyGoal: clamp(Math.round(action.settings.weeklyGoal), MIN_WEEKLY_GOAL, MAX_WEEKLY_GOAL),
+          rewardPrices: cleanPrices(action.settings.rewardPrices),
         },
       };
     case 'replaceAll':
