@@ -1,6 +1,6 @@
 /**
  * The reward shop: one section per patroller, showing what their points can
- * buy and how close they are to the two big streak prizes.
+ * buy and how close they are to the two big day-count prizes.
  *
  * The wallet is deliberately the loudest thing on each card. It is the number a
  * child will check, and it is not the same number as the leaderboard score -
@@ -9,9 +9,9 @@
 
 import { activePeople } from '../core/model';
 import type { Person } from '../core/model';
+import { daysPickedUp } from '../core/model';
 import { pointsBalance, rewardStatuses } from '../core/rewards';
 import type { RewardStatus } from '../core/rewards';
-import { streakFor } from '../core/streaks';
 import type { App } from './app';
 import { el } from './dom';
 import { points, shortDate } from './format';
@@ -50,7 +50,9 @@ export function buildRewards(app: App): HTMLElement {
 
 function buildPersonRewards(app: App, person: Person): HTMLElement {
   const balance = pointsBalance(app.save, person.id);
-  const streak = streakFor(app.save.log, person.id, app.today);
+  // Days done, not the streak: this is the number the big prizes count, and
+  // showing a streak here would suggest a run has to be unbroken.
+  const daysDone = daysPickedUp(app.save.log, person.id, app.today);
   const statuses = rewardStatuses(app.save, person.id, app.today);
 
   const avatar = el('span', { class: 'avatar', text: person.emoji, attrs: { 'aria-hidden': 'true' } });
@@ -60,7 +62,10 @@ function buildPersonRewards(app: App, person: Person): HTMLElement {
     avatar,
     el('div', { class: 'who' }, [
       el('div', { class: 'name', text: person.name }),
-      el('div', { class: 'meta', text: `🔥 ${String(streak.length)}-day streak` }),
+      el('div', {
+        class: 'meta',
+        text: `📅 ${String(daysDone)} ${daysDone === 1 ? 'day' : 'days'} done`,
+      }),
     ]),
     el('div', { class: 'balance' }, [
       el('span', { class: 'n', text: points(balance) }),

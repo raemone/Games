@@ -105,7 +105,7 @@ export function buildSettings(app: App, editing: PersonId | null): HTMLElement {
       el('p', {
         class: 'empty',
         text:
-          'Every poop is 10 points. Come back two days in a row and you get a bonus that grows by 5 each day, up to +25. A streak stays alive as long as the last day logged is today or yesterday.',
+          'Every poop is 10 points. Come back two days in a row and you get a bonus that grows by 5 each day, up to +25. The bonus keeps going as long as the last day logged is today or yesterday. The big rewards are separate: they count the days picked up in total, so a trip away never wipes them out.',
       }),
     ]),
   ]);
@@ -231,7 +231,7 @@ function buildRewardsSection(app: App): HTMLElement {
     el('section', { class: 'card' }, [
       el('p', {
         class: 'empty',
-        text: 'With a streak going, a child earns roughly 170 points a week at one pickup a day and 310 at three.',
+        text: 'Picking up every day, a child earns roughly 170 points a week at one a day and 310 at three.',
       }),
     ]),
   );
@@ -368,7 +368,7 @@ function buildBackupSection(app: App): HTMLElement {
     el('h2', { text: 'Backup' }),
     el('p', {
       class: 'empty',
-      text: 'Everything lives on this device only. Copy this text somewhere safe now and then - clearing the browser would take the streaks with it.',
+      text: 'Everything lives on this device only. Copy this text somewhere safe now and then - clearing the browser would take all the progress with it.',
     }),
     el('label', { class: 'field' }, [area]),
     el('div', { class: 'btn-row' }, [copy, restore]),
