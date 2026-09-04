@@ -106,6 +106,8 @@ describe('the chase finale', () => {
     }
   });
 
+  const IDLE = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
+
   function session(id: string): Session {
     const def = LEVELS.find((level) => level.id === id)!;
     return new Session(parseLevel(def), themeForWorld(def.world), createRun(), SILENT);
@@ -116,8 +118,7 @@ describe('the chase finale', () => {
     const startBones = 5;
     for (let i = 0; i < startBones; i++) play.run.bones += 1;
 
-    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
-    for (let tick = 0; tick < 60 * 20; tick++) play.update(idle);
+    for (let tick = 0; tick < 60 * 20; tick++) play.update(IDLE);
 
     // It reached them: the bones are gone, or a life is.
     expect(play.run.bones === 0 || play.run.lives < 3).toBe(true);
@@ -125,18 +126,15 @@ describe('the chase finale', () => {
 
   it('gives a grace period rather than catching you off the spawn', () => {
     const play = session('w1-3');
-    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
-    for (let tick = 0; tick < 60; tick++) play.update(idle);
+    for (let tick = 0; tick < 60; tick++) play.update(IDLE);
     expect(play.run.lives).toBe(3);
   });
 
   it('never overruns the goal, so the level always stays finishable', () => {
     const play = session('w3-3');
     const goal = play.level.entities.find((entity) => entity.kind === 'goal')!;
-    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
-
     for (let tick = 0; tick < 60 * 300; tick++) {
-      play.update(idle);
+      play.update(IDLE);
       if (play.chaseX !== null) expect(play.chaseX).toBeLessThan(goal.x);
     }
   });
@@ -144,5 +142,32 @@ describe('the chase finale', () => {
   it('leaves the other levels alone', () => {
     const play = session('w1-1');
     expect(play.chaseX).toBeNull();
+    expect(play.announcingChase).toBe(false);
+  });
+
+  it('announces itself for three seconds and holds still until it is done', () => {
+    const play = session('w1-3');
+    const startX = play.chaseX!;
+
+    expect(play.announcingChase).toBe(true);
+    for (let tick = 0; tick < 179; tick++) {
+      play.update(IDLE);
+      expect(play.announcingChase).toBe(true);
+      // It must not move while the warning is still up, or the warning is a lie.
+      expect(play.chaseX).toBe(startX);
+    }
+
+    play.update(IDLE);
+    expect(play.announcingChase).toBe(false);
+  });
+
+  it('counts down whole seconds, never reaching zero on screen', () => {
+    const play = session('w2-3');
+    const seen = new Set<number>();
+    while (play.announcingChase) {
+      seen.add(play.chaseCountdown);
+      play.update(IDLE);
+    }
+    expect([...seen].sort()).toEqual([1, 2, 3]);
   });
 });

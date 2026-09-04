@@ -23,13 +23,19 @@ const SIDE_SPRING_FORCE = 9;
 const BOOST_SPEED = 9;
 const BOP_BOUNCE = 6;
 const HURT_KNOCKBACK = 3;
-/** How far behind the player the chase starts, and restarts after a death. */
+/**
+ * How far behind the player the chase starts, and restarts after a death.
+ *
+ * At the very start of a level it is necessarily off screen - the player
+ * spawns near the left edge and the camera cannot pan past it - which is
+ * exactly why the opening announcement exists. From a checkpoint onwards there
+ * is room, and it comes into view with a second or so to spare.
+ */
 const CHASE_HEAD_START = 460;
 /**
- * Ticks of grace before the chase starts moving. Together with the head start
- * this gives a player who freezes about six seconds - long enough to read the
- * warning and react, rather than being run over while working out what the
- * flashing text means.
+ * Ticks before the chase sets off - exactly the three seconds the opening
+ * warning is on screen, so the announcement is the grace period rather than
+ * something the player has to read while already running.
  */
 const CHASE_DELAY = 180;
 /** How close the chase has to get before it catches you. */
@@ -100,6 +106,16 @@ export class Session {
   /** True while the chase is close enough to be worth panicking about. */
   get chaseIsClose(): boolean {
     return this.chaseX !== null && this.body.x - this.chaseX < 220;
+  }
+
+  /** True while the opening warning is on screen, before the chase sets off. */
+  get announcingChase(): boolean {
+    return this.chaseX !== null && this.ticks < CHASE_DELAY;
+  }
+
+  /** Whole seconds left before the chase starts, for the countdown. */
+  get chaseCountdown(): number {
+    return Math.max(1, Math.ceil((CHASE_DELAY - this.ticks) / 60));
   }
 
   get timeLimitMs(): number {

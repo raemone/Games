@@ -14,7 +14,7 @@ import { createRun, formatScore, formatTime, type Run } from './scoring';
 import { drawLevelSelect, drawTitle, hitHotspot, type Hotspot } from './screens';
 import { Session } from './session';
 import { Sprites } from './sprites';
-import { themeForWorld } from './theme';
+import { CHASE_TUNE, themeForWorld } from './theme';
 import { WorldRenderer } from './draw';
 import {
   drawButtonRow,
@@ -258,7 +258,7 @@ export class Game {
     this.run = createRun();
     this.beginSession(def);
     this.go('play');
-    this.audio.playTune(themeForWorld(def.world).tune);
+    this.playMusicFor(def);
   }
 
   private beginSession(def: LevelDef): void {
@@ -306,7 +306,12 @@ export class Game {
     this.run.elapsedMs = 0;
     this.beginSession(next);
     this.go('play');
-    this.audio.playTune(themeForWorld(next.world).tune);
+    this.playMusicFor(next);
+  }
+
+  /** Chase levels get their own urgent tune; everything else gets the world's. */
+  private playMusicFor(def: LevelDef): void {
+    this.audio.playTune(def.chase === undefined ? themeForWorld(def.world).tune : CHASE_TUNE);
   }
 
   private retryLevel(): void {
@@ -318,6 +323,7 @@ export class Game {
     this.run = createRun();
     this.beginSession(def);
     this.go('play');
+    this.playMusicFor(def);
   }
 
   private go(screen: Screen): void {

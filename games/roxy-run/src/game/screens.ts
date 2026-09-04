@@ -173,6 +173,28 @@ function drawCard(
   ctx.fillStyle = DIM;
   ctx.fillText(theme?.name ?? '', cx, box.y + size * 1.95);
 
+  // Chase levels are flagged, so picking one is never a surprise.
+  if (content.level.chase !== undefined) {
+    const label = 'CHASE!';
+    ctx.font = `800 ${size * 0.6}px system-ui, sans-serif`;
+    const pillW = ctx.measureText(label).width + size * 0.7;
+    const pillH = size * 0.95;
+    // On its own row under the world name: in the top corner it ran straight
+    // through the longer level titles.
+    const pillX = box.x + (box.w - pillW) / 2;
+    const pillY = box.y + size * 2.5;
+
+    ctx.beginPath();
+    ctx.roundRect?.(pillX, pillY, pillW, pillH, pillH / 2);
+    if (!ctx.roundRect) ctx.rect(pillX, pillY, pillW, pillH);
+    ctx.fillStyle = '#e2564a';
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, pillX + pillW / 2, pillY + pillH / 2 + size * 0.02);
+  }
+
+  ctx.font = `400 ${size * 0.72}px system-ui, sans-serif`;
   if (content.record?.completed) {
     ctx.fillStyle = ACCENT;
     ctx.fillText(

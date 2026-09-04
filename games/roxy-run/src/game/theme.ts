@@ -58,6 +58,25 @@ const BEACH_TUNE: Tune = {
   bass: ['D3', 'D3', 'A2', 'A2', 'B2', 'B2', 'F#2', 'F#2', 'G2', 'G2', 'D3', 'D3', 'A2', 'A2', 'A2', 'A2'],
 };
 
+/**
+ * Played instead of the world's own tune on the chase levels: fast, minor key,
+ * and a bass that never lets up. It is doing a job as much as setting a mood -
+ * the moment it starts, the player knows this level is different.
+ */
+export const CHASE_TUNE: Tune = {
+  bpm: 172,
+  lead: [
+    'D5', 'D5', 'F5', 'D5', 'A5', 'G#5', 'G5', 'F5',
+    'D5', 'D5', 'F5', 'D5', 'A#5', 'A5', 'G5', 'F5',
+    'C5', 'C5', 'D#5', 'C5', 'G5', 'F#5', 'F5', 'D#5',
+    'D5', 'F5', 'A5', 'D6', 'C6', 'A5', 'F5', 'D5',
+  ],
+  bass: [
+    'D2', 'D2', 'D2', 'D2', 'A#1', 'A#1', 'C2', 'C2',
+    'D2', 'D2', 'D2', 'D2', 'G#1', 'G#1', 'A1', 'A1',
+  ],
+};
+
 export const THEMES: readonly Theme[] = [
   {
     id: 1,

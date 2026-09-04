@@ -53,7 +53,58 @@ export function drawHud(
   });
 
   drawLives(ctx, layout, session, size, pad, sprites);
-  if (session.chaseIsClose) drawChaseWarning(ctx, layout, session, size);
+
+  // The opening announcement takes precedence: while it is up the chase has
+  // not set off yet, so the proximity warning would be nonsense.
+  if (session.announcingChase) {
+    drawChaseIntro(ctx, layout, session, size);
+  } else if (session.chaseIsClose) {
+    drawChaseWarning(ctx, layout, session, size);
+  }
+}
+
+/**
+ * The warning shown for the three seconds before the chase sets off. It names
+ * the thing coming and counts down, so a child knows what is about to happen
+ * and roughly when - rather than discovering it by being caught by it.
+ */
+function drawChaseIntro(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  session: Session,
+  size: number,
+): void {
+  const centreX = layout.width / 2;
+  const centreY = layout.height * 0.38;
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const bandHeight = size * 6;
+  ctx.fillStyle = 'rgba(12, 8, 26, 0.72)';
+  ctx.fillRect(0, centreY - bandHeight / 2, layout.width, bandHeight);
+  ctx.fillStyle = '#e2564a';
+  ctx.fillRect(0, centreY - bandHeight / 2, layout.width, 3);
+  ctx.fillRect(0, centreY + bandHeight / 2 - 3, layout.width, 3);
+
+  ctx.font = `700 ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('LOOK OUT!', centreX, centreY - size * 1.9);
+
+  // Pulsing, because this is the one thing on screen that matters right now.
+  const pulse = 1 + Math.sin(session.run.elapsedMs / 90) * 0.04;
+  ctx.font = `800 ${size * 2 * pulse}px system-ui, sans-serif`;
+  ctx.fillStyle = ACCENT;
+  ctx.fillText(session.theme.chase.name, centreX, centreY - size * 0.2);
+
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`Keep running! ${session.chaseCountdown}`, centreX, centreY + size * 1.9);
+
+  ctx.restore();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
 }
 
 /** A flashing banner, because the chase arrives from off the left of the screen. */
