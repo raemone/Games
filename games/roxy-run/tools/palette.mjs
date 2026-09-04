@@ -14,11 +14,9 @@ export const PAL = {
   R: '#d94b4b', // collar
   Y: '#ffd88a', // collar tag / sparkle
   S: '#8a93a6', // stone and metal
-  // Enemy bodies, one per world. The behaviour is shared; only the skin changes.
-  1: '#b5651d', // Green Park - squirrel
-  2: '#dce9f5', // Snowy Peaks - snowball
-  3: '#e0603c', // Beach Sunset - crab
+  // Ducks. White everywhere - they are the same bird in every world.
+  q: '#f4f8fc', // duck white
+  Q: '#ccd9e6', // duck shading
+  k: '#f2a03d', // bill and feet
+  K: '#cf7c1e', // bill shading
 };
-
-/** Palette keys for each world's enemies, indexed by world number. */
-export const ENEMY_KEYS = { 1: '1', 2: '2', 3: '3' };

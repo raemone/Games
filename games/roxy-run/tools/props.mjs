@@ -89,35 +89,51 @@ export function goal() {
   return finish(g);
 }
 
-/** Ground enemy. The palette key for its body is passed in per world. */
-export function walker(bodyKey, step) {
+/**
+ * The ground enemy: a white duck, waddling. `step` alternates the feet.
+ * Every world gets the same bird - ducks are ducks.
+ */
+export function walker(step) {
   const g = new Grid(24, 24);
   const bob = step ? -1 : 0;
-  g.ellipse(12, 15 + bob, 7, 6, bodyKey);
-  g.ellipse(16, 11 + bob, 4.5, 4.5, bodyKey); // head
-  g.ellipse(6, 11 + bob, 4, 5, bodyKey); // tail or shell tip
-  g.ellipse(18, 10 + bob, 1.3, 1.4, 'E');
-  g.set(17.5, 9.5 + bob, 'W');
-  // Feet, which alternate with the step.
-  g.ellipse(step ? 8 : 10, 21, 2.4, 2, 'o');
-  g.ellipse(step ? 16 : 14, 21, 2.4, 2, 'o');
+
+  // Feet first, so the body sits over them.
+  g.ellipse(step ? 8 : 11, 21 + bob, 2.4, 1.4, 'k');
+  g.ellipse(step ? 13 : 10, 21.5, 2.4, 1.4, 'K');
+
+  g.ellipse(10.5, 15 + bob, 7, 5.4, 'q'); // body
+  g.ellipse(4.5, 12.5 + bob, 3, 2.4, 'q'); // tail tuft
+  g.capsule(14.5, 12 + bob, 17, 7 + bob, 2.3, 'q'); // neck
+  g.ellipse(17.8, 5.8 + bob, 3.2, 3, 'q'); // head
+
+  g.ellipse(10, 15 + bob, 4.2, 2.6, 'Q'); // folded wing
+  g.capsule(20, 6 + bob, 22.8, 6.6 + bob, 1.5, 'k'); // bill
+  g.ellipse(22.6, 6.6 + bob, 1.2, 1, 'K');
+
+  g.ellipse(18.6, 4.8 + bob, 1.1, 1.2, 'E');
+  g.set(18.2, 4.3 + bob, 'W');
   return finish(g);
 }
 
-/** Flying enemy, wings up or down. */
-export function flyer(bodyKey, up) {
+/** The flying enemy: the same duck, airborne, wings up or down. */
+export function flyer(up) {
   const g = new Grid(24, 24);
-  // Wings go down first so the body sits in front of them, otherwise they
-  // swamp the sprite and it stops reading as a creature.
-  const wingY = up ? 7 : 11;
-  g.ellipse(9, wingY, 4, 2.2, 'W');
-  g.ellipse(14, wingY - 1, 3.2, 1.9, 'W');
+  const wingY = up ? 5.5 : 17.5;
 
-  g.ellipse(12, 15, 6, 4.6, bodyKey);
-  g.ellipse(17, 13, 3.4, 3.4, bodyKey);
-  g.ellipse(19, 12.5, 1.2, 1.3, 'E');
-  g.set(18.5, 12, 'W');
-  g.rect(9, 14, 6, 1, 'o'); // stripes
-  g.rect(9, 16, 6, 1, 'o');
+  // Far wing behind the body, near wing in front, so it reads as flapping.
+  g.ellipse(9.5, wingY + (up ? 1.5 : -1.5), 5, 2.4, 'Q');
+
+  g.ellipse(10.5, 13, 6.2, 4.2, 'q'); // body
+  g.ellipse(4.5, 12, 2.8, 2, 'q'); // tail
+  g.capsule(14.5, 12, 18.5, 9.5, 2.1, 'q'); // outstretched neck
+  g.ellipse(19.2, 9, 2.7, 2.6, 'q'); // head
+
+  g.ellipse(9.5, wingY, 5.2, 2.5, 'q'); // near wing
+  g.ellipse(9.5, wingY, 3.4, 1.4, 'Q');
+
+  g.capsule(21.2, 9.4, 23.4, 9.8, 1.4, 'k'); // bill
+  g.ellipse(20.2, 8.2, 1.1, 1.2, 'E');
+  g.set(19.8, 7.8, 'W');
+  g.ellipse(6, 15.5, 1.8, 1.2, 'k'); // tucked feet
   return finish(g);
 }

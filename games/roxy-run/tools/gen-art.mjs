@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Grid } from './draw.mjs';
 import { blit, encodePng, rowsToRgba } from './png.mjs';
-import { ENEMY_KEYS, PAL } from './palette.mjs';
+import { PAL } from './palette.mjs';
 import { roxyIcon, upscale } from './icon.mjs';
 import { CELL, roxyAnimations } from './roxy.mjs';
 import * as props from './props.mjs';
@@ -79,12 +79,11 @@ function buildProps() {
     ['goal', props.goal()],
   ];
 
-  for (const [world, key] of Object.entries(ENEMY_KEYS)) {
-    items.push([`walker${world}a`, props.walker(key, false)]);
-    items.push([`walker${world}b`, props.walker(key, true)]);
-    items.push([`flyer${world}a`, props.flyer(key, false)]);
-    items.push([`flyer${world}b`, props.flyer(key, true)]);
-  }
+  // One duck, shared by every world.
+  items.push(['walkerA', props.walker(false)]);
+  items.push(['walkerB', props.walker(true)]);
+  items.push(['flyerA', props.flyer(false)]);
+  items.push(['flyerB', props.flyer(true)]);
 
   const SHEET_WIDTH = 256;
   const PADDING = 1;

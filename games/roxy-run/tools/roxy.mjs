@@ -1,64 +1,97 @@
 // Roxy herself: a side-on golden retriever, composed from shapes so every
 // animation frame is a handful of parameters rather than 1024 hand-set pixels.
+//
+// The proportions follow the breed rather than a generic cartoon dog: a long
+// level back, legs that are genuinely long, a straight muzzle about as long as
+// the skull, ears set high and hanging, and - the thing that most makes the
+// silhouette read as a retriever - heavy cream feathering on the tail, chest,
+// belly and the backs of the legs.
 import { Grid } from './draw.mjs';
 
 export const CELL = 32;
-/** Where the feet sit inside the cell. */
+/** Where the paws sit inside the cell. */
 const GROUND_Y = 30;
+/** Underside of the ribcage. Legs hang from here. */
+const BELLY_Y = 20;
 
-/** Draw one leg as a capsule from hip to foot, swung by `phase`. */
-function leg(grid, hipX, hipY, phase, reach, lift, colour) {
+/**
+ * One leg: upper, lower, paw, and the feathering on the back of it.
+ * `phase` swings it; `back` legs are drawn slightly heavier at the top.
+ */
+function leg(grid, hipX, hipY, phase, reach, lift, colour, feather) {
   const footX = hipX + Math.sin(phase) * reach;
   const footY = GROUND_Y - Math.max(0, Math.cos(phase)) * lift;
-  // A knee part-way along, bent forward, so the leg does not read as a stick.
-  const kneeX = hipX + Math.sin(phase) * reach * 0.4;
-  const kneeY = (hipY + footY) / 2;
-  grid.capsule(hipX, hipY, kneeX, kneeY, 2, colour);
-  grid.capsule(kneeX, kneeY, footX, footY, 1.6, colour);
-  // Paw.
-  grid.ellipse(footX + 0.5, footY, 2.2, 1.4, 'C');
+  const kneeX = hipX + Math.sin(phase) * reach * 0.35;
+  const kneeY = (hipY + footY) / 2 + 1;
+
+  // Feathering trails behind the upper leg, so it shows when the leg swings.
+  if (feather) {
+    // A trailing fringe, not a whole cream leg - she has to stay golden.
+    grid.capsule(hipX - 1.4, hipY + 1, kneeX - 1.8, kneeY, 1.6, 'C');
+  }
+  grid.capsule(hipX, hipY, kneeX, kneeY, 2.1, colour);
+  grid.capsule(kneeX, kneeY, footX, footY - 1, 1.5, colour);
+  grid.ellipse(footX + 0.5, footY, 2.3, 1.5, 'C');
 }
 
+/**
+ * The plumed tail. Carried up and back in an arc rather than level, because a
+ * level tail disappears behind the body at this size and the plume is the most
+ * recognisable part of the breed's silhouette.
+ */
 function tail(grid, wag) {
-  // A retriever's tail is a plume, not a stick - it arcs up and fans out, and
-  // it is most of what makes the silhouette read as this breed.
-  const midX = 4.5 + Math.sin(wag) * 0.8;
-  const tipX = 3 + Math.sin(wag) * 2.2;
-  const tipY = 9 + Math.cos(wag) * 1.2;
-  grid.capsule(7, 19, midX, 14, 2.4, 'M');
-  grid.capsule(midX, 14, tipX, tipY + 1.5, 2.8, 'L');
-  grid.ellipse(tipX, tipY, 3, 3.4, 'L');
+  const lift = Math.sin(wag) * 1.2;
+  // Swept back and only a little up. Any higher and it reads as a flagpole
+  // rather than a tail, and it clips the top of the cell.
+  grid.capsule(8.5, 15.5, 5, 13 - lift * 0.5, 2.2, 'M');
+  grid.capsule(5, 13 - lift * 0.5, 2.4, 10.5 - lift, 2.4, 'L');
+  grid.ellipse(2.4, 10.5 - lift, 2.6, 2.4, 'L');
+  // The long fringe hanging beneath it.
+  grid.capsule(7.5, 17, 4, 15 - lift * 0.4, 2.2, 'C');
+  grid.capsule(4, 15 - lift * 0.4, 2.2, 13 - lift, 2, 'C');
 }
 
 function head(grid, dy, blink, earSwing) {
-  // Skull, then a long retriever muzzle, then the big hanging ear over the top.
-  grid.ellipse(23, 11 + dy, 5.4, 5.2, 'M');
-  grid.ellipse(28, 14 + dy, 4.4, 2.8, 'C');
-  grid.capsule(21, 7.5 + dy, 20 + earSwing, 18 + dy, 3.2, 'D');
+  // Skull, then a long straight muzzle - about as long again as the skull is
+  // wide, which is what stops a dog reading as a cat. The muzzle is gold on
+  // top with only the jaw in cream, so the head stays golden overall.
+  grid.ellipse(24.5, 8.5 + dy, 4.6, 4.5, 'M');
+  grid.capsule(26, 10.5 + dy, 30.5, 11 + dy, 2.4, 'M');
+  grid.capsule(27, 12.5 + dy, 30.5, 12.5 + dy, 1.3, 'C');
 
-  grid.ellipse(30.5, 13 + dy, 1.5, 1.3, 'N'); // nose
+  // Ear: set high, hanging, wide at the bottom.
+  grid.capsule(22.5, 5.5 + dy, 21.5 + earSwing, 12 + dy, 2.7, 'D');
+  grid.ellipse(21.5 + earSwing, 13 + dy, 2.5, 2.2, 'D');
+
+  grid.ellipse(31.5, 10.5 + dy, 1.5, 1.4, 'N'); // nose
   if (blink) {
-    grid.rect(24, 10 + dy, 4, 1, 'o');
+    grid.rect(25, 7 + dy, 3, 1, 'o');
   } else {
-    grid.ellipse(25.5, 9.5 + dy, 1.7, 1.8, 'E');
-    grid.set(25, 9 + dy, 'W');
+    grid.ellipse(26, 7 + dy, 1.5, 1.6, 'E');
+    grid.set(25.5, 6.5 + dy, 'W');
   }
-  // Mouth line, which is what makes her look pleased rather than blank.
-  grid.set(30, 16 + dy, 'o');
-  grid.set(29, 16 + dy, 'o');
-  grid.set(28, 15.5 + dy, 'o');
+  grid.set(30, 13.5 + dy, 'o'); // mouth line
+  grid.set(29, 13 + dy, 'o');
 }
 
 function body(grid, dy) {
-  grid.ellipse(14, 20 + dy, 9.5, 6.5, 'M');
-  grid.ellipse(19, 19 + dy, 5, 5.5, 'M'); // chest
-  grid.ellipse(13, 23 + dy, 7, 3.5, 'C'); // pale belly
+  // Long level back, deep chest, tucked waist.
+  grid.ellipse(15, 16.5 + dy, 10, 4.6, 'M');
+  grid.ellipse(20, 16.5 + dy, 5.2, 5, 'M'); // chest
+  grid.ellipse(9.5, 16.5 + dy, 5.4, 4.4, 'M'); // haunch
+  grid.capsule(21.5, 14 + dy, 23.5, 10 + dy, 3, 'M'); // neck
+
+  // Cream feathering: a fringe along the underside rather than a slab of pale
+  // belly, or she stops reading as golden at all.
+  grid.ellipse(15, BELLY_Y - 1.5 + dy, 8, 1.7, 'C');
+  grid.ellipse(20.5, 19 + dy, 3, 2.2, 'C');
+  grid.ellipse(23, 14 + dy, 1.8, 2, 'C'); // throat ruff
 }
 
-/** The collar goes on last, or the head draws straight over it. */
+/** The collar goes on last, or the head and ruff draw straight over it. */
 function collar(grid, dy) {
-  grid.rect(19, 16 + dy, 3, 4, 'R');
-  grid.set(20, 20 + dy, 'Y'); // tag
+  grid.capsule(22, 12 + dy, 23.3, 15 + dy, 1.3, 'R');
+  grid.set(23, 15.5 + dy, 'Y'); // tag
 }
 
 function finish(grid) {
@@ -68,17 +101,26 @@ function finish(grid) {
 }
 
 /** A standing or running pose. */
-function pose({ frontPhase, backPhase, bodyDy = 0, reach = 5, lift = 4, blink = false, wag = 0, earSwing = 0 }) {
+function pose({
+  frontPhase,
+  backPhase,
+  bodyDy = 0,
+  reach = 5,
+  lift = 4,
+  blink = false,
+  wag = 0,
+  earSwing = 0,
+}) {
   const grid = new Grid(CELL, CELL);
-  // Far-side legs first, in the shade, so the near legs read as in front.
-  leg(grid, 10, 22 + bodyDy, backPhase + Math.PI, reach, lift, 'D');
-  leg(grid, 19, 22 + bodyDy, frontPhase + Math.PI, reach, lift, 'D');
+  // Far-side legs first, in shade, so the near pair reads as in front.
+  leg(grid, 9.5, BELLY_Y + bodyDy, backPhase + Math.PI, reach, lift, 'D', false);
+  leg(grid, 19.5, BELLY_Y + bodyDy, frontPhase + Math.PI, reach, lift, 'D', false);
   tail(grid, wag);
   body(grid, bodyDy);
   head(grid, bodyDy, blink, earSwing);
   collar(grid, bodyDy);
-  leg(grid, 11, 23 + bodyDy, backPhase, reach, lift, 'M');
-  leg(grid, 20, 23 + bodyDy, frontPhase, reach, lift, 'M');
+  leg(grid, 10.5, BELLY_Y + 1 + bodyDy, backPhase, reach, lift, 'M', true);
+  leg(grid, 20.5, BELLY_Y + 1 + bodyDy, frontPhase, reach, lift, 'M', true);
   return finish(grid);
 }
 
@@ -86,11 +128,11 @@ function pose({ frontPhase, backPhase, bodyDy = 0, reach = 5, lift = 4, blink = 
 function rollFrame(turn) {
   const grid = new Grid(CELL, CELL);
   const cx = 16;
-  const cy = 21;
+  const cy = 20;
   grid.ellipse(cx, cy, 9.5, 9.5, 'M');
   grid.ellipse(cx, cy, 6, 6, 'L');
 
-  // Three arcs of fur that sweep round, which is what sells the rotation.
+  // Sweeping arcs of fur, which is what sells the rotation.
   for (let i = 0; i < 3; i++) {
     const a = turn * Math.PI * 2 + (i * Math.PI * 2) / 3;
     grid.capsule(
@@ -102,80 +144,78 @@ function rollFrame(turn) {
       'D',
     );
   }
-  // An ear and a paw poking out, so it is still recognisably a dog.
+  // An ear and the tail plume poking out, so it stays a dog and not a wheel.
   const ea = turn * Math.PI * 2;
-  grid.ellipse(cx + Math.cos(ea) * 8, cy + Math.sin(ea) * 8, 2.4, 2, 'D');
-  grid.ellipse(cx - Math.cos(ea) * 8, cy - Math.sin(ea) * 8, 2, 1.8, 'C');
+  grid.ellipse(cx + Math.cos(ea) * 8, cy + Math.sin(ea) * 8, 2.6, 2.2, 'D');
+  grid.ellipse(cx - Math.cos(ea) * 8.5, cy - Math.sin(ea) * 8.5, 2.8, 2.4, 'C');
   return finish(grid);
 }
 
 function jumpFrame() {
   const grid = new Grid(CELL, CELL);
-  // Legs tucked up and forward.
-  grid.capsule(11, 22, 9, 25, 2, 'D');
-  grid.capsule(19, 22, 22, 25, 2, 'D');
-  tail(grid, 1.2);
+  // Front legs reaching, back legs trailing - a dog at full stretch.
+  leg(grid, 9.5, BELLY_Y - 1, 2.4, 6, 0, 'D', false);
+  leg(grid, 19.5, BELLY_Y - 1, -1.9, 6, 0, 'D', false);
+  tail(grid, 0.6);
   body(grid, -1);
-  head(grid, -1, false, 1.5);
-  collar(grid, -1);
-  grid.capsule(12, 23, 10, 26, 2, 'M');
-  grid.capsule(20, 23, 23, 26, 2, 'M');
-  grid.ellipse(9.5, 26, 2.2, 1.4, 'C');
-  grid.ellipse(23.5, 26, 2.2, 1.4, 'C');
+  head(grid, -1.5, false, 1.6);
+  collar(grid, -1.5);
+  leg(grid, 10.5, BELLY_Y, 2.4, 6, 0, 'M', true);
+  leg(grid, 20.5, BELLY_Y, -1.9, 6, 0, 'M', true);
   return finish(grid);
 }
 
 function hurtFrame() {
   const grid = new Grid(CELL, CELL);
-  leg(grid, 10, 22, 2.2, 6, 5, 'D');
-  leg(grid, 19, 22, -2.2, 6, 5, 'D');
-  tail(grid, 2.5);
+  leg(grid, 9.5, BELLY_Y, 2.2, 6, 5, 'D', false);
+  leg(grid, 19.5, BELLY_Y, -2.2, 6, 5, 'D', false);
+  tail(grid, 2.6);
   body(grid, 0);
 
-  grid.ellipse(23, 11, 5.4, 5.2, 'M');
-  grid.ellipse(28, 14, 4.4, 2.8, 'C');
-  grid.capsule(21, 7, 19, 16, 3.2, 'D');
+  grid.ellipse(24.5, 8.5, 4.6, 4.5, 'M');
+  grid.capsule(26, 10.5, 30.5, 11, 2.4, 'M');
+  grid.capsule(27, 12.5, 30.5, 12.5, 1.3, 'C');
+  grid.capsule(22.5, 4.5, 21, 11, 2.7, 'D');
+  grid.ellipse(31.5, 10.5, 1.5, 1.4, 'N');
   collar(grid, 0);
-  grid.ellipse(30.5, 13, 1.5, 1.3, 'N');
   // Screwed-shut eye.
-  grid.set(24, 10, 'o');
-  grid.set(26, 10, 'o');
-  grid.set(25, 11, 'o');
-  grid.set(24, 12, 'o');
-  grid.set(26, 12, 'o');
+  grid.set(25, 6, 'o');
+  grid.set(27, 6, 'o');
+  grid.set(26, 7, 'o');
+  grid.set(25, 8, 'o');
+  grid.set(27, 8, 'o');
 
-  leg(grid, 11, 23, 2.2, 6, 5, 'M');
-  leg(grid, 20, 23, -2.2, 6, 5, 'M');
+  leg(grid, 10.5, BELLY_Y + 1, 2.2, 6, 5, 'M', true);
+  leg(grid, 20.5, BELLY_Y + 1, -2.2, 6, 5, 'M', true);
   return finish(grid);
 }
 
 function skidFrame() {
   const grid = new Grid(CELL, CELL);
-  // Front legs braced forward, haunches down.
-  leg(grid, 10, 24, -0.6, 3, 0, 'D');
-  leg(grid, 19, 22, 1.3, 7, 0, 'D');
+  // Front legs braced forward, haunches dropped.
+  leg(grid, 9.5, BELLY_Y + 2, -0.5, 3, 0, 'D', false);
+  leg(grid, 19.5, BELLY_Y, 1.4, 7, 0, 'D', false);
   tail(grid, 2.8);
   body(grid, 2);
-  head(grid, 1, false, -1.5);
+  head(grid, 1, false, -1.6);
   collar(grid, 1);
-  leg(grid, 11, 25, -0.6, 3, 0, 'M');
-  leg(grid, 20, 23, 1.3, 7, 0, 'M');
+  leg(grid, 10.5, BELLY_Y + 3, -0.5, 3, 0, 'M', true);
+  leg(grid, 20.5, BELLY_Y + 1, 1.4, 7, 0, 'M', true);
   return finish(grid);
 }
 
 function victoryFrame(up) {
   const grid = new Grid(CELL, CELL);
   const dy = up ? -2 : 0;
-  leg(grid, 10, 22 + dy, 0.2, 3, 0, 'D');
-  leg(grid, 19, 20 + dy, up ? -1.6 : -1.1, 6, 6, 'D');
-  tail(grid, up ? 0.4 : 2.6);
+  leg(grid, 9.5, BELLY_Y + dy, 0.2, 3, 0, 'D', false);
+  leg(grid, 19.5, BELLY_Y - 2 + dy, up ? -1.7 : -1.2, 6, 6, 'D', false);
+  tail(grid, up ? 0.3 : 2.6);
   body(grid, dy);
   head(grid, dy - (up ? 1 : 0), false, up ? -2 : 0);
   collar(grid, dy);
-  // Tongue out - she is very pleased with herself.
-  grid.ellipse(30, 17 + dy, 1.2, 1.8, 'T');
-  leg(grid, 11, 23 + dy, 0.2, 3, 0, 'M');
-  leg(grid, 20, 21 + dy, up ? -1.6 : -1.1, 6, 6, 'M');
+  grid.ellipse(31, 14 + dy, 1.3, 2, 'T'); // tongue out, very pleased
+  leg(grid, 10.5, BELLY_Y + 1 + dy, 0.2, 3, 0, 'M', true);
+  leg(grid, 20.5, BELLY_Y - 1 + dy, up ? -1.7 : -1.2, 6, 6, 'M', true);
   return finish(grid);
 }
 
@@ -186,16 +226,17 @@ function victoryFrame(up) {
 export function roxyAnimations() {
   const idle = [];
   for (let i = 0; i < 4; i++) {
+    const t = (i / 4) * Math.PI * 2;
     idle.push(
       pose({
         frontPhase: 0,
         backPhase: 0,
-        reach: 2,
+        reach: 1.5,
         lift: 0,
         bodyDy: i === 1 || i === 3 ? -1 : 0,
         blink: i === 2,
-        wag: Math.sin((i / 4) * Math.PI * 2) * 1.4,
-        earSwing: Math.sin((i / 4) * Math.PI * 2) * 0.6,
+        wag: t,
+        earSwing: Math.sin(t) * 0.6,
       }),
     );
   }
@@ -210,7 +251,7 @@ export function roxyAnimations() {
         reach: 4,
         lift: 3,
         bodyDy: Math.abs(Math.sin(phase)) > 0.8 ? -1 : 0,
-        wag: Math.sin(phase) * 1.2,
+        wag: phase,
       }),
     );
   }
@@ -226,7 +267,7 @@ export function roxyAnimations() {
         reach: 7,
         lift: 6,
         bodyDy: -Math.abs(Math.sin(phase * 2)) * 2,
-        wag: Math.sin(phase * 2) * 1.6,
+        wag: phase * 2,
         earSwing: 1.4,
       }),
     );

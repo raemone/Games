@@ -28,7 +28,7 @@ export interface Region {
   readonly h: number;
 }
 
-export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walker1a' | 'walker1b' | 'flyer1a' | 'flyer1b' | 'walker2a' | 'walker2b' | 'flyer2a' | 'flyer2b' | 'walker3a' | 'walker3b' | 'flyer3a' | 'flyer3b';
+export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB';
 
 export const PROPS: Readonly<Record<PropName, Region>> = {
   bone: { x: 0, y: 0, w: 16, h: 16 },
@@ -39,16 +39,8 @@ export const PROPS: Readonly<Record<PropName, Region>> = {
   checkpoint: { x: 85, y: 0, w: 16, h: 32 },
   checkpointLit: { x: 102, y: 0, w: 16, h: 32 },
   goal: { x: 119, y: 0, w: 32, h: 48 },
-  walker1a: { x: 152, y: 0, w: 24, h: 24 },
-  walker1b: { x: 177, y: 0, w: 24, h: 24 },
-  flyer1a: { x: 202, y: 0, w: 24, h: 24 },
-  flyer1b: { x: 227, y: 0, w: 24, h: 24 },
-  walker2a: { x: 0, y: 49, w: 24, h: 24 },
-  walker2b: { x: 25, y: 49, w: 24, h: 24 },
-  flyer2a: { x: 50, y: 49, w: 24, h: 24 },
-  flyer2b: { x: 75, y: 49, w: 24, h: 24 },
-  walker3a: { x: 100, y: 49, w: 24, h: 24 },
-  walker3b: { x: 125, y: 49, w: 24, h: 24 },
-  flyer3a: { x: 150, y: 49, w: 24, h: 24 },
-  flyer3b: { x: 175, y: 49, w: 24, h: 24 },
+  walkerA: { x: 152, y: 0, w: 24, h: 24 },
+  walkerB: { x: 177, y: 0, w: 24, h: 24 },
+  flyerA: { x: 202, y: 0, w: 24, h: 24 },
+  flyerB: { x: 227, y: 0, w: 24, h: 24 },
 };

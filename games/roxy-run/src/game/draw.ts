@@ -8,16 +8,20 @@ import { TILE } from './collision';
 import { ONE_WAY_SHAPE } from './tiles';
 import type { Session } from './session';
 import type { RoxyAnimation, Sprites } from './sprites';
-import { buildBackdrop, buildTileset } from './terrain';
+import { LAYER_HEIGHT, LAYER_WIDTH, buildBackdrop, type Backdrop } from './backdrop';
+import { GROUND_ROW } from '../levels/segments';
+import { buildTileset } from './terrain';
 import type { Theme } from './theme';
 import type { Entity } from './entities';
-import type { PropName } from '../assets/generated/sprites';
 
-const BACKDROP_WIDTH = 320;
-const BACKDROP_HEIGHT = 120;
-/** How much slower than the camera each parallax layer moves. */
-const FAR_FACTOR = 0.25;
-const NEAR_FACTOR = 0.5;
+/**
+ * Where the scenery stands. Backdrops are anchored to the level's shared
+ * ground line rather than to the bottom of the screen - anchor them to the
+ * screen and the terrain simply buries them.
+ */
+const GROUND_LINE = GROUND_ROW * TILE;
+/** Flecks are scattered over this many screens and wrapped. */
+const FLECK_FIELD = 3;
 /** Half the kennel sprite's height, so it sits on the ground it spawns over. */
 const GOAL_ART_HALF_HEIGHT = 22;
 
@@ -39,8 +43,10 @@ function frameDelay(animation: RoxyAnimation, speed: number): number {
 
 export class WorldRenderer {
   private readonly tileset: HTMLCanvasElement;
-  private readonly backdrop: HTMLCanvasElement;
+  private readonly backdrop: Backdrop;
   private readonly sky: CanvasGradient;
+  /** Free-running counter for drifting flecks and shimmering water. */
+  private weatherTick = 0;
 
   private animation: RoxyAnimation = 'idle';
   private frame = 0;
@@ -52,7 +58,7 @@ export class WorldRenderer {
     ctx: CanvasRenderingContext2D,
   ) {
     this.tileset = buildTileset(theme).canvas;
-    this.backdrop = buildBackdrop(theme, BACKDROP_WIDTH, BACKDROP_HEIGHT);
+    this.backdrop = buildBackdrop(theme);
 
     this.sky = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT);
     this.sky.addColorStop(0, theme.sky[0]);
@@ -64,10 +70,14 @@ export class WorldRenderer {
     const camX = Math.round(session.camera.x + shake.x);
     const camY = Math.round(session.camera.y + shake.y);
 
+    this.weatherTick += 1;
+
     ctx.fillStyle = this.sky;
     ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
+    this.drawSun(ctx, camX, camY);
     this.drawParallax(ctx, camX, camY);
+    this.drawFlecks(ctx, camX, camY);
     this.drawTiles(ctx, session, camX, camY);
     this.drawChase(ctx, session, camX, camY);
     this.drawEntities(ctx, session, camX, camY);
@@ -77,16 +87,57 @@ export class WorldRenderer {
   }
 
   private drawParallax(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
-    const horizon = VIRTUAL_HEIGHT - BACKDROP_HEIGHT + Math.round(camY * 0.12);
-    for (const factor of [FAR_FACTOR, NEAR_FACTOR]) {
-      const offset = Math.round(camX * factor) % BACKDROP_WIDTH;
-      const y = factor === FAR_FACTOR ? horizon - 18 : horizon;
-      ctx.globalAlpha = factor === FAR_FACTOR ? 0.55 : 1;
-      for (let x = -offset - BACKDROP_WIDTH; x < VIRTUAL_WIDTH; x += BACKDROP_WIDTH) {
-        ctx.drawImage(this.backdrop, x, y);
+    for (const layer of this.backdrop.layers) {
+      const offset = Math.round(camX * layer.factor) % LAYER_WIDTH;
+      // Distant layers rise and fall less than near ones as the camera moves,
+      // which is the vertical half of the parallax.
+      const groundY = GROUND_LINE - camY * (0.65 + layer.factor * 0.35);
+      const y = Math.round(groundY - LAYER_HEIGHT + layer.offsetY);
+      ctx.globalAlpha = layer.alpha;
+      // Two copies is enough: each layer is exactly one screen wide.
+      for (let x = -offset - LAYER_WIDTH; x < VIRTUAL_WIDTH; x += LAYER_WIDTH) {
+        ctx.drawImage(layer.canvas, x, y);
       }
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** The sun sits behind everything and barely moves. */
+  private drawSun(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
+    const { sun } = this.backdrop;
+    const x = sun.x - camX * 0.02;
+    const y = sun.y + camY * 0.05;
+
+    ctx.fillStyle = sun.glow;
+    ctx.beginPath();
+    ctx.arc(x, y, sun.radius * 2.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = sun.colour;
+    ctx.beginPath();
+    ctx.arc(x, y, sun.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /**
+   * Snow, blossom or spray. Positions come from an index rather than stored
+   * particles, so there is nothing to allocate or update per frame.
+   */
+  private drawFlecks(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
+    const flecks = this.backdrop.flecks;
+    if (!flecks) return;
+
+    const field = VIRTUAL_WIDTH * FLECK_FIELD;
+    ctx.fillStyle = flecks.colour;
+    for (let i = 0; i < flecks.count; i++) {
+      const speed = 0.4 + (i % 5) * 0.16;
+      const fall = this.weatherTick * flecks.drift * speed;
+      const sway = Math.sin((this.weatherTick / 40) + i) * 6;
+
+      const x = mod(i * 137.5 - camX * 0.35 + sway, field) - VIRTUAL_WIDTH;
+      const y = mod(i * 71.3 + fall - camY * 0.35, VIRTUAL_HEIGHT + 40) - 20;
+      const size = i % 3 === 0 ? 2 : 1;
+      ctx.fillRect(Math.round(x), Math.round(y), size, size);
+    }
   }
 
   private drawTiles(
@@ -177,7 +228,6 @@ export class WorldRenderer {
   }
 
   private drawEntity(ctx: CanvasRenderingContext2D, entity: Entity, x: number, y: number): void {
-    const world = this.theme.id;
     switch (entity.kind) {
       case 'bone':
         // A gentle bob makes a static pickup feel alive.
@@ -213,9 +263,10 @@ export class WorldRenderer {
         this.sprites.drawProp(ctx, 'goal', x, y + GOAL_ART_HALF_HEIGHT);
         break;
       case 'walker':
+        // The ducks face left by default, so flip when waddling right.
         this.sprites.drawPropCentred(
           ctx,
-          `walker${world}${Math.floor(entity.t / 12) % 2 === 0 ? 'a' : 'b'}` as PropName,
+          Math.floor(entity.t / 12) % 2 === 0 ? 'walkerA' : 'walkerB',
           x,
           y,
           entity.facing === 1,
@@ -224,7 +275,7 @@ export class WorldRenderer {
       case 'flyer':
         this.sprites.drawPropCentred(
           ctx,
-          `flyer${world}${Math.floor(entity.t / 8) % 2 === 0 ? 'a' : 'b'}` as PropName,
+          Math.floor(entity.t / 8) % 2 === 0 ? 'flyerA' : 'flyerB',
           x,
           y,
           entity.facing === 1,
@@ -345,4 +396,9 @@ function chooseAnimation(session: Session): RoxyAnimation {
   if (speed > 3.5) return 'run';
   if (speed > 0.3) return 'walk';
   return 'idle';
+}
+
+/** Positive modulo, so wrapping works for negative camera offsets too. */
+function mod(value: number, size: number): number {
+  return ((value % size) + size) % size;
 }
