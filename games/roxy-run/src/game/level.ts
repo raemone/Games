@@ -58,6 +58,11 @@ export interface LevelDef {
   readonly world: number;
   /** Seconds before the level is failed. */
   readonly timeLimit: number;
+  /**
+   * Pixels per tick for a thing that chases the player from the left, or
+   * undefined for a level with no chase. Each world's last level uses it.
+   */
+  readonly chase?: number;
   readonly rows: readonly string[];
 }
 

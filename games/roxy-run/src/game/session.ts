@@ -23,6 +23,17 @@ const SIDE_SPRING_FORCE = 9;
 const BOOST_SPEED = 9;
 const BOP_BOUNCE = 6;
 const HURT_KNOCKBACK = 3;
+/** How far behind the player the chase starts, and restarts after a death. */
+const CHASE_HEAD_START = 460;
+/**
+ * Ticks of grace before the chase starts moving. Together with the head start
+ * this gives a player who freezes about six seconds - long enough to read the
+ * warning and react, rather than being run over while working out what the
+ * flashing text means.
+ */
+const CHASE_DELAY = 180;
+/** How close the chase has to get before it catches you. */
+const CHASE_REACH = 14;
 
 /** A bone knocked loose by a hit. */
 export interface LooseBone {
@@ -63,6 +74,13 @@ export class Session {
   private ticks = 0;
   /** Set once, so the goal cannot be scored twice. */
   private finished = false;
+  /**
+   * World x of the thing chasing the player, or null on a level without one.
+   * It is a moving left-hand wall rather than an entity: nothing about it
+   * needs collision geometry, only a position and the rule that being behind
+   * it hurts.
+   */
+  chaseX: number | null;
 
   constructor(
     readonly level: Level,
@@ -76,6 +94,12 @@ export class Session {
     this.camera.snapTo(this.body.x, this.body.y);
     this.checkpointX = level.spawn.x;
     this.checkpointY = level.spawn.y;
+    this.chaseX = level.def.chase === undefined ? null : level.spawn.x - CHASE_HEAD_START;
+  }
+
+  /** True while the chase is close enough to be worth panicking about. */
+  get chaseIsClose(): boolean {
+    return this.chaseX !== null && this.body.x - this.chaseX < 220;
   }
 
   get timeLimitMs(): number {
@@ -114,6 +138,7 @@ export class Session {
 
     this.ridePlatforms();
     this.collideEntities();
+    this.updateChase();
     this.clampToLevel();
 
     this.camera.follow(this.body.x, this.body.y, this.body.gsp, this.body.grounded);
@@ -331,6 +356,27 @@ export class Session {
     }
   }
 
+  /** Advance the chasing wall and catch anyone who falls behind it. */
+  private updateChase(): void {
+    const speed = this.level.def.chase;
+    if (speed === undefined || this.chaseX === null) return;
+    if (this.ticks < CHASE_DELAY) return;
+
+    this.chaseX += speed;
+
+    // Never let it overrun the goal, or finishing becomes a coin flip.
+    const goal = this.level.entities.find((entity) => entity.kind === 'goal');
+    if (goal) this.chaseX = Math.min(this.chaseX, goal.x - 40);
+
+    if (this.body.x - this.body.widthRadius > this.chaseX + CHASE_REACH) return;
+
+    // Caught: take a hit and get shoved clear, so the same tick cannot catch
+    // you again the moment the invulnerability ends.
+    if (this.invulnerable > 0) return;
+    this.hurt(this.chaseX);
+    this.body.x = this.chaseX + CHASE_REACH + this.body.widthRadius + 24;
+  }
+
   private updateLooseBones(): void {
     const player = this.playerBox();
 
@@ -431,6 +477,7 @@ export class Session {
     this.body.angle = 0;
     this.camera.snapTo(this.body.x, this.body.y);
     this.loose.length = 0;
+    if (this.chaseX !== null) this.chaseX = this.checkpointX - CHASE_HEAD_START;
   }
 
   private timeUp(): void {
@@ -459,6 +506,8 @@ export class Session {
     this.popups.length = 0;
     this.checkpointX = this.level.spawn.x;
     this.checkpointY = this.level.spawn.y;
+    this.chaseX =
+      this.level.def.chase === undefined ? null : this.level.spawn.x - CHASE_HEAD_START;
     respawn(this.run);
     this.body.x = this.level.spawn.x;
     this.body.y = this.level.spawn.y;

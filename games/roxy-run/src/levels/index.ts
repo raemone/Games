@@ -15,6 +15,8 @@ interface LevelPlan {
   readonly world: number;
   /** Seconds. Generous - running out of time should be rare for a child. */
   readonly timeLimit: number;
+  /** Pixels per tick for the world's chase finale. Omit for a normal level. */
+  readonly chase?: number;
   readonly segments: readonly SegmentName[];
 }
 
@@ -38,6 +40,7 @@ const PLANS: readonly LevelPlan[] = [
     name: 'The Long Field',
     world: 1,
     timeLimit: 260,
+    chase: 2.3,
     segments: ['start', 'boost', 'hill', 'flat', 'flyers', 'crates', 'checkpoint', 'gap', 'walkers', 'spring', 'dip', 'finish'],
   },
   {
@@ -59,6 +62,7 @@ const PLANS: readonly LevelPlan[] = [
     name: 'Avalanche Run',
     world: 2,
     timeLimit: 280,
+    chase: 2.6,
     segments: ['start', 'boost', 'dip', 'gap', 'walkers', 'checkpoint', 'split', 'flyers', 'hill', 'crates', 'ride', 'finish'],
   },
   {
@@ -80,6 +84,7 @@ const PLANS: readonly LevelPlan[] = [
     name: 'Sunset Sprint',
     world: 3,
     timeLimit: 300,
+    chase: 2.9,
     segments: ['start', 'boost', 'hill', 'flat', 'gap', 'crates', 'flyers', 'checkpoint', 'split', 'spikes', 'ride', 'dip', 'finish'],
   },
 ];
@@ -89,6 +94,7 @@ export const LEVELS: readonly LevelDef[] = PLANS.map((plan) => ({
   name: plan.name,
   world: plan.world,
   timeLimit: plan.timeLimit,
+  ...(plan.chase === undefined ? {} : { chase: plan.chase }),
   rows: buildRows(plan.segments),
 }));
 

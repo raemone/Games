@@ -20,6 +20,8 @@ export interface Theme {
   /** Decoration drawn on the near layer: trees, peaks or palms. */
   readonly decor: 'tree' | 'peak' | 'palm';
   readonly accent: string;
+  /** The thing that chases you through the world's last level. */
+  readonly chase: { readonly name: string; readonly body: string; readonly edge: string };
   readonly tune: Tune;
 }
 
@@ -67,6 +69,7 @@ export const THEMES: readonly Theme[] = [
     near: '#4e9e46',
     decor: 'tree',
     accent: '#ffd88a',
+    chase: { name: 'The lawnmower!', body: '#e2564a', edge: '#ffd88a' },
     tune: PARK_TUNE,
   },
   {
@@ -80,6 +83,7 @@ export const THEMES: readonly Theme[] = [
     near: '#8fabc4',
     decor: 'peak',
     accent: '#bde6ff',
+    chase: { name: 'Avalanche!', body: '#eaf6ff', edge: '#9fc7e8' },
     tune: SNOW_TUNE,
   },
   {
@@ -93,6 +97,7 @@ export const THEMES: readonly Theme[] = [
     near: '#c9713f',
     decor: 'palm',
     accent: '#ff6f91',
+    chase: { name: 'Big wave!', body: '#2f9fd0', edge: '#bdf0ff' },
     tune: BEACH_TUNE,
   },
 ];

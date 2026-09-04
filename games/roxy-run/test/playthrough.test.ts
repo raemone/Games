@@ -3,6 +3,7 @@ import { LEVELS } from '../src/levels';
 import { parseLevel } from '../src/game/level';
 import { findFloor, isWallAt } from '../src/game/collision';
 import { createRun } from '../src/game/scoring';
+import { PHYS } from '../src/game/physics';
 import { Session } from '../src/game/session';
 import { themeForWorld } from '../src/game/theme';
 import type { Audio } from '../src/engine/audio';
@@ -89,5 +90,59 @@ describe('playing produces a sensible score', () => {
   it('does not lose every life just getting to the end', () => {
     const { session } = playthrough(0, LEVELS[0]!.timeLimit * 60);
     expect(session.run.lives).toBeGreaterThan(0);
+  });
+});
+
+describe('the chase finale', () => {
+  const CHASE_LEVELS = LEVELS.filter((level) => level.chase !== undefined);
+
+  it('is on the last level of every world and nowhere else', () => {
+    expect(CHASE_LEVELS.map((level) => level.id)).toEqual(['w1-3', 'w2-3', 'w3-3']);
+  });
+
+  it('is slower than Roxy at a run, so it can always be outpaced', () => {
+    for (const level of CHASE_LEVELS) {
+      expect(level.chase!).toBeLessThan(PHYS.topSpeed / 2);
+    }
+  });
+
+  function session(id: string): Session {
+    const def = LEVELS.find((level) => level.id === id)!;
+    return new Session(parseLevel(def), themeForWorld(def.world), createRun(), SILENT);
+  }
+
+  it('catches a player who stands still', () => {
+    const play = session('w1-3');
+    const startBones = 5;
+    for (let i = 0; i < startBones; i++) play.run.bones += 1;
+
+    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
+    for (let tick = 0; tick < 60 * 20; tick++) play.update(idle);
+
+    // It reached them: the bones are gone, or a life is.
+    expect(play.run.bones === 0 || play.run.lives < 3).toBe(true);
+  });
+
+  it('gives a grace period rather than catching you off the spawn', () => {
+    const play = session('w1-3');
+    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
+    for (let tick = 0; tick < 60; tick++) play.update(idle);
+    expect(play.run.lives).toBe(3);
+  });
+
+  it('never overruns the goal, so the level always stays finishable', () => {
+    const play = session('w3-3');
+    const goal = play.level.entities.find((entity) => entity.kind === 'goal')!;
+    const idle = { left: false, right: false, down: false, jumpHeld: false, jumpPressed: false };
+
+    for (let tick = 0; tick < 60 * 300; tick++) {
+      play.update(idle);
+      if (play.chaseX !== null) expect(play.chaseX).toBeLessThan(goal.x);
+    }
+  });
+
+  it('leaves the other levels alone', () => {
+    const play = session('w1-1');
+    expect(play.chaseX).toBeNull();
   });
 });

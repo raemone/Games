@@ -69,6 +69,7 @@ export class WorldRenderer {
 
     this.drawParallax(ctx, camX, camY);
     this.drawTiles(ctx, session, camX, camY);
+    this.drawChase(ctx, session, camX, camY);
     this.drawEntities(ctx, session, camX, camY);
     this.drawLooseBones(ctx, session, camX, camY);
     this.drawRoxy(ctx, session, camX, camY);
@@ -126,6 +127,38 @@ export class WorldRenderer {
         );
       }
     }
+  }
+
+  /**
+   * The chasing wall: everything left of it is death. Drawn behind the
+   * entities so bones and enemies stay readable as it swallows them.
+   */
+  private drawChase(
+    ctx: CanvasRenderingContext2D,
+    session: Session,
+    camX: number,
+    camY: number,
+  ): void {
+    if (session.chaseX === null) return;
+    const edgeX = Math.round(session.chaseX - camX);
+    if (edgeX < -40) return;
+
+    const { body, edge } = this.theme.chase;
+    const top = -camY;
+
+    ctx.fillStyle = body;
+    ctx.fillRect(-VIRTUAL_WIDTH, top, edgeX + VIRTUAL_WIDTH, VIRTUAL_HEIGHT * 2);
+
+    // A churning leading edge, so it reads as moving rather than as a wall.
+    ctx.fillStyle = edge;
+    const t = session.body.x + session.entities.length; // any steadily changing value
+    for (let y = top; y < VIRTUAL_HEIGHT + 40; y += 12) {
+      const wobble = Math.sin((y + t) / 9) * 4;
+      ctx.beginPath();
+      ctx.arc(edgeX + wobble, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillRect(edgeX - 6, top, 4, VIRTUAL_HEIGHT * 2);
   }
 
   private drawEntities(

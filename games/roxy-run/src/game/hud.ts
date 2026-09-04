@@ -47,6 +47,23 @@ export function drawHud(ctx: CanvasRenderingContext2D, layout: Layout, session: 
   });
 
   drawLives(ctx, layout, session, size, pad);
+  if (session.chaseIsClose) drawChaseWarning(ctx, layout, session, size);
+}
+
+/** A flashing banner, because the chase arrives from off the left of the screen. */
+function drawChaseWarning(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  session: Session,
+  size: number,
+): void {
+  const flash = Math.floor(session.run.elapsedMs / 250) % 2 === 0;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = `800 ${size * 1.3}px system-ui, sans-serif`;
+  ctx.fillStyle = flash ? '#ff6f61' : ACCENT;
+  ctx.fillText(session.theme.chase.name, layout.width / 2, layout.insets.top + size * 0.8);
+  ctx.restore();
 }
 
 function drawLives(
