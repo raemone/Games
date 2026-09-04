@@ -13,6 +13,7 @@
  *     last Tuesday repairs a streak and grants a badge with no migration.
  */
 
+import { compareDays } from './dates';
 import type { DayKey } from './dates';
 
 export type PersonId = string;
@@ -38,7 +39,7 @@ export interface Settings {
   readonly confettiOn: boolean;
 }
 
-export type RewardKind = 'points' | 'streak';
+export type RewardKind = 'points' | 'days';
 
 /**
  * Something the work buys. The family edits these, so they are stored rather
@@ -57,8 +58,13 @@ export interface Reward {
   readonly kind: RewardKind;
   /** Points kind: what it costs. */
   readonly price: number;
-  /** Streak kind: the run needed, and it can only ever be won once. */
-  readonly streakDays: number;
+  /**
+   * Days kind: how many days this person has to have picked something up -
+   * counted in total, not in a row. A family that travels cannot hold a
+   * hundred-day run, but they can absolutely rack up a hundred days.
+   * Won once, ever.
+   */
+  readonly daysNeeded: number;
   /**
    * Removed rewards are archived, never deleted: a claim already made spent
    * real points, and dropping it would hand those points back by accident.
@@ -198,6 +204,11 @@ export const REWARD_EMOJI: readonly string[] = [
 
 export function firstRewardEmoji(): string {
   return REWARD_EMOJI[0] ?? '🎁';
+}
+
+/** Days this person picked something up, counted in total rather than in a row. */
+export function daysPickedUp(log: Log, personId: PersonId, today: DayKey): number {
+  return activeDaysFor(log, personId).filter((day) => compareDays(day, today) <= 0).length;
 }
 
 export function personById(people: readonly Person[], id: PersonId): Person | null {

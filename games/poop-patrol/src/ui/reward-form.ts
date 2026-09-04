@@ -5,12 +5,12 @@
 
 import { MAX_REWARD_BLURB, MAX_REWARD_NAME, REWARD_EMOJI, firstRewardEmoji } from '../core/model';
 import type { Reward, RewardKind } from '../core/model';
-import { MAX_PRICE, MAX_STREAK_DAYS, MIN_PRICE, MIN_STREAK_DAYS } from '../core/rewards';
+import { MAX_DAYS_NEEDED, MAX_PRICE, MIN_DAYS_NEEDED, MIN_PRICE } from '../core/rewards';
 import type { RewardDraft } from '../core/reducer';
 import { el, show } from './dom';
 
 const DEFAULT_PRICE = 100;
-const DEFAULT_STREAK_DAYS = 30;
+const DEFAULT_DAYS_NEEDED = 30;
 
 export class RewardForm {
   readonly root: HTMLElement;
@@ -20,9 +20,9 @@ export class RewardForm {
   private readonly nameInput: HTMLInputElement;
   private readonly blurbInput: HTMLInputElement;
   private readonly priceInput: HTMLInputElement;
-  private readonly streakInput: HTMLInputElement;
+  private readonly daysInput: HTMLInputElement;
   private readonly priceField: HTMLElement;
-  private readonly streakField: HTMLElement;
+  private readonly daysField: HTMLElement;
   private readonly emojiButtons: HTMLButtonElement[] = [];
   private readonly kindButtons: HTMLButtonElement[] = [];
 
@@ -63,27 +63,27 @@ export class RewardForm {
     });
     this.priceInput.value = String(existing?.kind === 'points' ? existing.price : DEFAULT_PRICE);
 
-    this.streakInput = el('input', {
+    this.daysInput = el('input', {
       attrs: {
         type: 'number',
-        min: String(MIN_STREAK_DAYS),
-        max: String(MAX_STREAK_DAYS),
+        min: String(MIN_DAYS_NEEDED),
+        max: String(MAX_DAYS_NEEDED),
         inputmode: 'numeric',
-        'aria-label': 'Streak needed, in days',
+        'aria-label': 'Days of picking up needed',
       },
       on: { input: () => this.onChange() },
     });
-    this.streakInput.value = String(
-      existing?.kind === 'streak' ? existing.streakDays : DEFAULT_STREAK_DAYS,
+    this.daysInput.value = String(
+      existing?.kind === 'days' ? existing.daysNeeded : DEFAULT_DAYS_NEEDED,
     );
 
     this.priceField = el('label', { class: 'field' }, [
       el('span', { text: 'Price in points' }),
       this.priceInput,
     ]);
-    this.streakField = el('label', { class: 'field' }, [
-      el('span', { text: 'Streak needed, in days' }),
-      this.streakInput,
+    this.daysField = el('label', { class: 'field' }, [
+      el('span', { text: 'Days of picking up needed' }),
+      this.daysInput,
     ]);
 
     this.root = el('div', {}, [
@@ -92,7 +92,7 @@ export class RewardForm {
       el('div', { class: 'field' }, [el('span', { text: 'Icon' }), this.buildEmojiGrid()]),
       el('div', { class: 'field' }, [el('span', { text: 'How it is earned' }), this.buildKindPicker()]),
       this.priceField,
-      this.streakField,
+      this.daysField,
     ]);
 
     this.paint();
@@ -121,7 +121,7 @@ export class RewardForm {
   private buildKindPicker(): HTMLElement {
     const options: readonly (readonly [RewardKind, string])[] = [
       ['points', 'Bought with points'],
-      ['streak', 'Won with a streak'],
+      ['days', 'Won after enough days'],
     ];
 
     const group = el('div', { class: 'kind-picker', attrs: { role: 'group' } });
@@ -151,7 +151,7 @@ export class RewardForm {
 
   isValid(): boolean {
     if (this.nameInput.value.trim().length === 0) return false;
-    const amount = Number(this.kind === 'points' ? this.priceInput.value : this.streakInput.value);
+    const amount = Number(this.kind === 'points' ? this.priceInput.value : this.daysInput.value);
     return Number.isFinite(amount) && amount > 0;
   }
 
@@ -162,7 +162,7 @@ export class RewardForm {
       blurb: this.blurbInput.value.trim(),
       kind: this.kind,
       price: Number(this.priceInput.value),
-      streakDays: Number(this.streakInput.value),
+      daysNeeded: Number(this.daysInput.value),
     };
   }
 
@@ -181,8 +181,8 @@ export class RewardForm {
       button.setAttribute('aria-pressed', String(button.dataset.kind === this.kind));
     }
     // Only the field that applies to the chosen kind is on screen, so there is
-    // never a price and a streak sitting side by side.
+    // never a price and a day count sitting side by side.
     show(this.priceField, this.kind === 'points');
-    show(this.streakField, this.kind === 'streak');
+    show(this.daysField, this.kind === 'days');
   }
 }

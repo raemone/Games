@@ -26,9 +26,9 @@ import {
 import type { Claim, Log, Person, PersonId, Reward, RewardKind, SaveData, Settings } from './model';
 import {
   MAX_PRICE,
-  MAX_STREAK_DAYS,
+  MAX_DAYS_NEEDED,
   MIN_PRICE,
-  MIN_STREAK_DAYS,
+  MIN_DAYS_NEEDED,
   canClaim,
   costOf,
 } from './rewards';
@@ -40,7 +40,7 @@ export interface RewardDraft {
   readonly blurb: string;
   readonly kind: RewardKind;
   readonly price: number;
-  readonly streakDays: number;
+  readonly daysNeeded: number;
 }
 
 export type Action =
@@ -184,7 +184,7 @@ function cleanDraft(draft: RewardDraft, id: string): Reward | null {
     blurb: draft.blurb.trim().slice(0, MAX_REWARD_BLURB),
     kind: draft.kind,
     price: points ? clamp(Math.round(draft.price), MIN_PRICE, MAX_PRICE) : 0,
-    streakDays: points ? 0 : clamp(Math.round(draft.streakDays), MIN_STREAK_DAYS, MAX_STREAK_DAYS),
+    daysNeeded: points ? 0 : clamp(Math.round(draft.daysNeeded), MIN_DAYS_NEEDED, MAX_DAYS_NEEDED),
     archived: false,
   };
 }

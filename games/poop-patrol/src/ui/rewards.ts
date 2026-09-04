@@ -28,7 +28,7 @@ export function buildRewards(app: App): HTMLElement {
     el('header', { class: 'topbar' }, [
       el('div', { class: 'grow' }, [
         el('h1', { text: '🎁 Rewards' }),
-        el('p', { text: 'Spend points, or hold a streak' }),
+        el('p', { text: 'Spend points, or keep showing up' }),
       ]),
       el('button', {
         class: 'icon-btn',
@@ -42,7 +42,7 @@ export function buildRewards(app: App): HTMLElement {
       el('h2', { text: 'How it works' }),
       el('p', {
         class: 'empty',
-        text: 'Every poop is 10 points, plus a streak bonus. Points buy the first three rewards over and over - spending them never costs you your place on the leaderboard. The last two are not for sale: they need a streak that long, and they can only be won once.',
+        text: 'Every poop is 10 points, plus a bonus for coming back day after day. Points buy rewards over and over - spending them never costs you your place on the leaderboard. The big ones are not for sale: they count up the days you have picked up, in total rather than in a row, so a holiday costs you nothing. Those can only be won once.',
       }),
     ]),
   ]);
@@ -80,7 +80,7 @@ function buildRewardRow(app: App, person: Person, status: RewardStatus): HTMLEle
   const requirement =
     reward.kind === 'points'
       ? `${points(status.price)} pts`
-      : `🔥 ${String(reward.streakDays)} days`;
+      : `${String(reward.daysNeeded)} days`;
 
   const detail = detailLine(status);
 
@@ -133,6 +133,6 @@ function detailLine(status: RewardStatus): string {
   if (state === 'claimed') {
     return status.lastClaimed ? `Won on ${shortDate(status.lastClaimed)}` : 'Won';
   }
-  if (state === 'ready') return `${String(reward.streakDays)} days reached. Once ever.`;
-  return `Best streak ${String(status.streak)} · ${String(status.daysToGo)} days to go`;
+  if (state === 'ready') return `${String(reward.daysNeeded)} days of picking up. Once ever.`;
+  return `${String(status.daysDone)} days done · ${String(status.daysToGo)} to go`;
 }

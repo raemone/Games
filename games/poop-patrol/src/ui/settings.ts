@@ -242,7 +242,7 @@ function buildRewardsSection(app: App): HTMLElement {
 function rewardCost(reward: Reward): string {
   return reward.kind === 'points'
     ? `${reward.price.toLocaleString()} pts`
-    : `🔥 ${String(reward.streakDays)} days, once ever`;
+    : `${String(reward.daysNeeded)} days of picking up, once ever`;
 }
 
 function buildRewardRow(app: App, reward: Reward, editing: string | null): HTMLElement {

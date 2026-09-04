@@ -5,7 +5,7 @@ import { reduce } from '../src/core/reducer';
 import { careerPoints } from '../src/core/scoring';
 import {
   DEFAULT_REWARDS,
-  MAX_STREAK_DAYS,
+  MAX_DAYS_NEEDED,
   activeRewards,
   affordableIds,
   canClaim,
@@ -52,14 +52,14 @@ describe('the reward ladder', () => {
       DEFAULT_REWARDS.map((reward) =>
         reward.kind === 'points'
           ? [reward.id, 'points', reward.price]
-          : [reward.id, 'streak', reward.streakDays],
+          : [reward.id, 'days', reward.daysNeeded],
       ),
     ).toEqual([
       ['screen-hour', 'points', 100],
       ['chick-fil-a', 'points', 400],
       ['arcade-basement', 'points', 800],
-      ['cellphone', 'streak', 100],
-      ['switch-2', 'streak', 200],
+      ['cellphone', 'days', 100],
+      ['switch-2', 'days', 200],
     ]);
   });
 
@@ -167,22 +167,48 @@ describe('prices', () => {
   });
 });
 
-describe('streak milestones', () => {
-  it('needs the full run, not a day less', () => {
+describe('the big prizes, counted in days', () => {
+  it('needs the full count, not a day less', () => {
     expect(statusOf(saveWithStreak(99), 'cellphone')).toMatchObject({ state: 'locked', daysToGo: 1 });
     expect(statusOf(saveWithStreak(100), 'cellphone').state).toBe('ready');
     expect(statusOf(saveWithStreak(199), 'switch-2')).toMatchObject({ state: 'locked', daysToGo: 1 });
     expect(statusOf(saveWithStreak(200), 'switch-2').state).toBe('ready');
   });
 
-  it('is measured against the best run ever, not the current one', () => {
-    // A hundred-day run that ended a month ago still earned the cellphone.
-    const save = saveWith([person('p1')], run(100, addDays(TODAY, -30)));
+  it('counts days in total, not in a row', () => {
+    // The point of the change: a family that travels still gets there. A
+    // hundred days spread over two spells, with a fortnight away in between.
+    const entries: Record<string, number> = {};
+    for (let back = 0; back < 50; back += 1) entries[addDays(TODAY, -back)] = 1;
+    for (let back = 64; back < 114; back += 1) entries[addDays(TODAY, -back)] = 1;
+    const save = saveWith([person('p1')], logFor('p1', entries));
+
+    expect(statusOf(save, 'cellphone')).toMatchObject({ state: 'ready', daysDone: 100 });
+  });
+
+  it('is not lost when the run breaks', () => {
+    const entries: Record<string, number> = {};
+    for (let back = 30; back < 130; back += 1) entries[addDays(TODAY, -back)] = 1;
+    const save = saveWith([person('p1')], logFor('p1', entries));
+
+    // Nothing for a month, and the prize is still earned.
     expect(statusOf(save, 'cellphone').state).toBe('ready');
   });
 
+  it('does not count a day twice however much was picked up', () => {
+    const save = saveWith([person('p1')], logFor('p1', { [TODAY]: 99 }));
+    expect(statusOf(save, 'cellphone').daysDone).toBe(1);
+  });
+
+  it('ignores days after today', () => {
+    const entries: Record<string, number> = {};
+    for (let back = -20; back < 5; back += 1) entries[addDays(TODAY, -back)] = 1;
+    const save = saveWith([person('p1')], logFor('p1', entries));
+    expect(statusOf(save, 'cellphone').daysDone).toBe(5);
+  });
+
   it('cannot be bought with points, however rich you are', () => {
-    const save = saveWithStreak(50); // plenty of points, nowhere near 100 days
+    const save = saveWithStreak(50);
     expect(pointsBalance(save, 'p1')).toBeGreaterThan(1000);
     expect(statusOf(save, 'cellphone').state).toBe('locked');
   });
@@ -289,7 +315,7 @@ describe('managing the reward list', () => {
     blurb: 'From the van.',
     kind: 'points' as const,
     price: 150,
-    streakDays: 0,
+    daysNeeded: 0,
   };
 
   it('adds a reward with a fresh id', () => {
@@ -323,19 +349,19 @@ describe('managing the reward list', () => {
 
     const long = reduce(
       saveWithStreak(5),
-      { kind: 'addReward', draft: { ...draft, kind: 'streak', streakDays: 99999 } },
+      { kind: 'addReward', draft: { ...draft, kind: 'days', daysNeeded: 99999 } },
       TODAY,
     );
-    expect(long.rewards[long.rewards.length - 1]?.streakDays).toBe(MAX_STREAK_DAYS);
+    expect(long.rewards[long.rewards.length - 1]?.daysNeeded).toBe(MAX_DAYS_NEEDED);
   });
 
   it('zeroes the field that does not apply to the kind', () => {
     const streak = reduce(
       saveWithStreak(5),
-      { kind: 'addReward', draft: { ...draft, kind: 'streak', price: 500, streakDays: 40 } },
+      { kind: 'addReward', draft: { ...draft, kind: 'days', price: 500, daysNeeded: 40 } },
       TODAY,
     );
-    expect(streak.rewards[streak.rewards.length - 1]).toMatchObject({ price: 0, streakDays: 40 });
+    expect(streak.rewards[streak.rewards.length - 1]).toMatchObject({ price: 0, daysNeeded: 40 });
   });
 
   it('stops at the maximum', () => {

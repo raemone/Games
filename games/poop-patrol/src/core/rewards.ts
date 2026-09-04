@@ -10,9 +10,11 @@
  *   - POINTS rewards are bought, over and over. Points scale with how many
  *     were actually picked up, so a big clean-up is worth more than a token
  *     one, which a pure streak gate could never express.
- *   - STREAK rewards are won once in a lifetime, measured against the best run
- *     ever reached - so a hundred-day streak still counts after it eventually
- *     breaks. Nobody earns a Switch 2 twice.
+ *   - DAYS rewards are won once in a lifetime, measured against the number of
+ *     days that person has picked something up IN TOTAL, not in a row. A
+ *     family that travels cannot hold a hundred-day run, and gating the big
+ *     prizes on one would mean nobody ever won them. Days accumulate instead,
+ *     so a fortnight away costs progress but never destroys it.
  *
  * The critical distinction is between points EARNED and points SPENT. Earned
  * points are the score: they drive the weekly leaderboard and the career rank
@@ -27,9 +29,9 @@
  */
 
 import type { DayKey } from './dates';
+import { daysPickedUp } from './model';
 import type { Claim, PersonId, Reward, SaveData } from './model';
 import { careerPoints } from './scoring';
-import { bestStreak } from './streaks';
 
 export type RewardState = 'locked' | 'ready' | 'claimed';
 
@@ -40,8 +42,8 @@ export interface RewardStatus {
   readonly price: number;
   readonly balance: number;
   readonly shortBy: number;
-  /** Streak rewards: the best run so far and how far short it is. */
-  readonly streak: number;
+  /** Days rewards: days picked up so far, and how many are still to go. */
+  readonly daysDone: number;
   readonly daysToGo: number;
   readonly lastClaimed: DayKey | null;
   readonly timesClaimed: number;
@@ -49,8 +51,8 @@ export interface RewardStatus {
 
 export const MIN_PRICE = 1;
 export const MAX_PRICE = 100_000;
-export const MIN_STREAK_DAYS = 1;
-export const MAX_STREAK_DAYS = 1000;
+export const MIN_DAYS_NEEDED = 1;
+export const MAX_DAYS_NEEDED = 1000;
 
 /**
  * What a new save starts with, agreed with the family. Prices are calibrated
@@ -67,7 +69,7 @@ export const DEFAULT_REWARDS: readonly Reward[] = [
     blurb: 'TV, Switch or tablet - your pick.',
     kind: 'points',
     price: 100,
-    streakDays: 0,
+    daysNeeded: 0,
     archived: false,
   },
   {
@@ -77,7 +79,7 @@ export const DEFAULT_REWARDS: readonly Reward[] = [
     blurb: 'Lunch is on us.',
     kind: 'points',
     price: 400,
-    streakDays: 0,
+    daysNeeded: 0,
     archived: false,
   },
   {
@@ -87,27 +89,27 @@ export const DEFAULT_REWARDS: readonly Reward[] = [
     blurb: "A whole afternoon at my parents' basement.",
     kind: 'points',
     price: 800,
-    streakDays: 0,
+    daysNeeded: 0,
     archived: false,
   },
   {
     id: 'cellphone',
     emoji: '📱',
     name: 'A cellphone',
-    blurb: 'One hundred days in a row. Genuinely.',
-    kind: 'streak',
+    blurb: 'One hundred days of picking up. Genuinely.',
+    kind: 'days',
     price: 0,
-    streakDays: 100,
+    daysNeeded: 100,
     archived: false,
   },
   {
     id: 'switch-2',
     emoji: '🎮',
     name: 'A Nintendo Switch 2',
-    blurb: 'Two hundred days. The big one.',
-    kind: 'streak',
+    blurb: 'Two hundred days of picking up. The big one.',
+    kind: 'days',
     price: 0,
-    streakDays: 200,
+    daysNeeded: 200,
     archived: false,
   },
 ];
@@ -163,23 +165,23 @@ export function rewardStatus(
       price: reward.price,
       balance,
       shortBy: Math.max(0, reward.price - balance),
-      streak: 0,
+      daysDone: 0,
       daysToGo: 0,
       lastClaimed,
       timesClaimed,
     };
   }
 
-  const streak = bestStreak(save.log, personId, today);
+  const daysDone = daysPickedUp(save.log, personId, today);
 
   return {
     reward,
-    state: timesClaimed > 0 ? 'claimed' : streak >= reward.streakDays ? 'ready' : 'locked',
+    state: timesClaimed > 0 ? 'claimed' : daysDone >= reward.daysNeeded ? 'ready' : 'locked',
     price: 0,
     balance: 0,
     shortBy: 0,
-    streak,
-    daysToGo: Math.max(0, reward.streakDays - streak),
+    daysDone,
+    daysToGo: Math.max(0, reward.daysNeeded - daysDone),
     lastClaimed,
     timesClaimed,
   };

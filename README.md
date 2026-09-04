@@ -118,13 +118,23 @@ with them, over and over:
 | 🍗 | Chick-fil-A lunch | 400 pts |
 | 🕹️ | MPB — an afternoon at the arcade in my parents' basement | 800 pts |
 
-The two big ones are not for sale. They need a streak that long and can only be
-won once:
+The two big ones are not for sale. They count the days that person has picked
+something up — **in total, not in a row** — and can only be won once:
 
 | | Reward | Needs |
 |---|---|---|
-| 📱 | A cellphone | a 100-day streak |
-| 🎮 | A Nintendo Switch 2 | a 200-day streak |
+| 📱 | A cellphone | 100 days of picking up |
+| 🎮 | A Nintendo Switch 2 | 200 days of picking up |
+
+Total days rather than consecutive ones because the family travels. A hundred-day
+unbroken run is not a goal, it is a guarantee of failure: one trip out of state
+and it is gone for good, with nothing to show for the ninety days before it.
+Counting days instead means a fortnight away costs progress but never destroys
+it.
+
+Every reward is editable in the app — add your own, rename them, re-price them,
+or take them off the list. Removing one archives it rather than deleting it, so
+points already spent on it stay spent.
 
 The distinction that matters is between points **earned** and points **spent**.
 Earned points are the score — they drive the leaderboard and the career rank and
@@ -132,8 +142,8 @@ they never go down. The balance is earned minus spent, and that is what the shop
 charges. If redeeming a lunch cost a child their place on the leaderboard, the
 sensible move would be to never redeem anything.
 
-Prices are calibrated against what the scoring actually pays: with a streak
-going, a child earns roughly 170 points a week at one pickup a day and 310 at
+Prices are calibrated against what the scoring actually pays: coming back day
+after day, a child earns roughly 170 points a week at one pickup a day and 310 at
 three. So screen time lands every few days, lunch is a fortnight's work, and MPB is a
 monthly treat. A single day of pickups is worth 10 to 30 points, so
 it still buys nothing at all — which was the rule the family set. Every price is
@@ -141,9 +151,10 @@ editable in settings, because you will want to tune them once you see how fast
 the kids really earn.
 
 A claim records what it actually cost, so re-pricing a reward later never
-rewrites what past redemptions were worth. The streak prizes are measured
-against the best run ever reached, so a hundred-day streak still counts after it
-eventually breaks.
+rewrites what past redemptions were worth.
+
+The daily streak still exists, but only as the points bonus — it caps after six
+days and rebuilds in under a week, so a holiday costs a little and nothing more.
 
 ### Where things live
 

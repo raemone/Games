@@ -30,13 +30,13 @@ import {
   firstColor,
   firstEmoji,
 } from './model';
-import type { Claim, Log, Person, PersonId, Reward, SaveData, Settings } from './model';
+import type { Claim, Log, Person, PersonId, Reward, RewardKind, SaveData, Settings } from './model';
 import {
   DEFAULT_REWARDS,
   MAX_PRICE,
-  MAX_STREAK_DAYS,
+  MAX_DAYS_NEEDED,
   MIN_PRICE,
-  MIN_STREAK_DAYS,
+  MIN_DAYS_NEEDED,
 } from './rewards';
 
 const KEY = 'poop-patrol:save';
@@ -204,7 +204,9 @@ function migrateRewards(raw: unknown, legacyPrices: unknown): Reward[] {
     if (id.length === 0 || seen.has(id)) continue;
     seen.add(id);
 
-    const kind = record.kind === 'streak' ? 'streak' : 'points';
+    // 'streak' is the old name for this kind, from before the gate counted
+    // total days rather than consecutive ones.
+    const kind: RewardKind = record.kind === 'days' || record.kind === 'streak' ? 'days' : 'points';
 
     rewards.push({
       id,
@@ -213,9 +215,14 @@ function migrateRewards(raw: unknown, legacyPrices: unknown): Reward[] {
       blurb: typeof record.blurb === 'string' ? record.blurb.trim().slice(0, MAX_REWARD_BLURB) : '',
       kind,
       price: kind === 'points' ? clamp(Math.round(num(record.price, 100)), MIN_PRICE, MAX_PRICE) : 0,
-      streakDays:
-        kind === 'streak'
-          ? clamp(Math.round(num(record.streakDays, 100)), MIN_STREAK_DAYS, MAX_STREAK_DAYS)
+      daysNeeded:
+        kind === 'days'
+          ? clamp(
+              // Older saves called it streakDays.
+              Math.round(num(record.daysNeeded, num(record.streakDays, 100))),
+              MIN_DAYS_NEEDED,
+              MAX_DAYS_NEEDED,
+            )
           : 0,
       archived: bool(record.archived, false),
     });

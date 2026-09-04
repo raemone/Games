@@ -275,7 +275,7 @@ describe('migrating the reward list', () => {
         blurb: 'From the van.',
         kind: 'points',
         price: 150,
-        streakDays: 0,
+        daysNeeded: 0,
         archived: false,
       },
     ]);
@@ -290,11 +290,20 @@ describe('migrating the reward list', () => {
     const migrated = migrate({
       rewards: [
         { id: 'r1', name: '   ', kind: 'points', price: 1e9 },
-        { id: 'r2', name: 'Streaky', kind: 'streak', streakDays: -4 },
+        { id: 'r2', name: 'Dayly', kind: 'days', daysNeeded: -4 },
       ],
     });
     expect(migrated.rewards[0]).toMatchObject({ name: 'A reward', price: 100000, emoji: '🎁' });
-    expect(migrated.rewards[1]).toMatchObject({ kind: 'streak', streakDays: 1, price: 0 });
+    expect(migrated.rewards[1]).toMatchObject({ kind: 'days', daysNeeded: 1, price: 0 });
+  });
+
+  it("upgrades a save that still calls the big prizes streaks", () => {
+    // Before the family pointed out that travel makes a hundred-day run
+    // impossible, this kind was 'streak' and the field was streakDays.
+    const migrated = migrate({
+      rewards: [{ id: 'cellphone', name: 'A cellphone', kind: 'streak', streakDays: 100 }],
+    });
+    expect(migrated.rewards[0]).toMatchObject({ kind: 'days', daysNeeded: 100 });
   });
 
   it('de-duplicates reward ids and caps the list', () => {
