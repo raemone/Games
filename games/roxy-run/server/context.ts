@@ -5,9 +5,9 @@
  * between requests: building the client per request would be wasteful, and
  * building the memory store per request would empty the board every time.
  */
-import { type Env, currentEnv } from './env';
-import { configFromEnv } from './redis';
-import { MemoryStore, RedisStore, type Store } from './store';
+import { type Env, currentEnv } from './env.js';
+import { configFromEnv } from './redis.js';
+import { MemoryStore, RedisStore, type Store } from './store.js';
 
 export interface Backend {
   readonly store: Store;

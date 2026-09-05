@@ -7,7 +7,7 @@
  * cross-origin - get this wrong and the board is simply invisible, with the
  * failure buried in a browser console nobody has open.
  */
-import { type Env, currentEnv } from './env';
+import { type Env, currentEnv } from './env.js';
 
 /** Origins allowed to read the board, beyond anything ALLOWED_ORIGINS adds. */
 const DEFAULT_ORIGINS = [

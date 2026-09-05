@@ -7,7 +7,7 @@
  * against a package that would have to be vendored, updated and trusted.
  */
 
-import { type Env, currentEnv } from './env';
+import { type Env, currentEnv } from './env.js';
 
 export type Command = readonly (string | number)[];
 

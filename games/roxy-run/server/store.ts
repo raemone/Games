@@ -9,7 +9,7 @@
  * out boards that empty themselves. The API says so in its health response
  * rather than pretending otherwise.
  */
-import { type RedisConfig, command, pipeline } from './redis';
+import { type RedisConfig, command, pipeline } from './redis.js';
 
 export interface Entry {
   readonly playerId: string;

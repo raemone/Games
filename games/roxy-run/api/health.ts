@@ -1,35 +1,27 @@
 /**
- * Is the board actually storing anything?
+ * Whether the board is really storing anything: /api/health.
  *
- * Worth a route of its own: with no database attached the API answers every
- * request perfectly happily and forgets each one, which from the game's side
- * looks identical to nobody having played yet. This is how you tell the
- * difference without guessing.
+ * A wrapper around `server/routes.ts`, for the reason given in
+ * `leaderboard.ts`. This is the route someone opens when the board is
+ * misbehaving, so it is the last one that should answer with a crash page
+ * instead of a sentence.
  */
-import { backend } from '../server/context';
-import { json, preflight } from '../server/http';
-import { restVariablesPresent } from '../server/redis';
+import { failure } from '../server/failure.js';
 
 export async function OPTIONS(request: Request): Promise<Response> {
-  return preflight(request);
+  try {
+    const { boardOptions } = await import('../server/routes.js');
+    return await boardOptions(request);
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const { persistent } = backend();
-  const seen = restVariablesPresent();
-
-  return json(
-    {
-      ok: true,
-      storage: persistent ? 'redis' : 'memory',
-      // Names only, never values: this route is unauthenticated.
-      restVariablesSeen: seen,
-      note: persistent
-        ? undefined
-        : seen.length === 0
-          ? 'No database attached: scores are kept in memory and lost when the function restarts. If a Redis store is attached, check it exposes the REST variables - a redis:// connection string alone cannot be used from here.'
-          : 'A database is half configured: some REST variables are set but not a complete URL and token pair.',
-    },
-    { origin: request.headers.get('origin') },
-  );
+  try {
+    const { healthGet } = await import('../server/routes.js');
+    return await healthGet(request);
+  } catch (error) {
+    return failure(error);
+  }
 }

@@ -8,11 +8,16 @@
  * deployed function goes near it.
  */
 export async function resolve(specifier, context, next) {
-  if (specifier.startsWith('.') && !/\.[a-z]+$/i.test(specifier)) {
-    // Both the shapes a bundler would resolve: the module itself, and a
-    // directory's index. The game imports `../src/levels`, which is the
-    // second, so missing it breaks the API rather than just the dev server.
-    for (const candidate of [`${specifier}.ts`, `${specifier}/index.ts`]) {
+  if (specifier.startsWith('.')) {
+    // The source imports `./thing.js`, which is what the compiled function
+    // ships and what Node needs to see. Here nothing is compiled, so the file
+    // on disk is `./thing.ts`. Extensionless and directory forms are tried too,
+    // for anything written the bundler-ish way.
+    const candidates = specifier.endsWith('.js')
+      ? [`${specifier.slice(0, -3)}.ts`]
+      : [`${specifier}.ts`, `${specifier}/index.ts`];
+
+    for (const candidate of candidates) {
       try {
         return await next(candidate, context);
       } catch {

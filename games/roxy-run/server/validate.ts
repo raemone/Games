@@ -1,10 +1,9 @@
 /**
  * Everything arriving from a browser, checked before it can reach the database.
  *
- * The level table it checks against is the game's own - the same module the
- * game builds its levels from - so a level added or a clock retuned is known
- * to the server the moment it is known to the game. This is the one real perk
- * of the API living inside the game's package rather than beside it.
+ * The level table it checks against is the API's own copy, kept honest against
+ * the game's by a test rather than by an import - see `levels.ts` for why the
+ * deployed function does not reach into the game's module graph.
  *
  * Be honest about what this is: plausibility checking, not proof. The game runs
  * entirely on the player's machine, so a determined adult with the network tab
@@ -13,7 +12,7 @@
  * what actually ruins a leaderboard a family looks at. See the README for what
  * proving a run would take.
  */
-import { levelById } from '../src/levels';
+import { levelById } from './levels.js';
 
 /**
  * Well above anything a real run pays.
