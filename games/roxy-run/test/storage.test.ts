@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SAVE_VERSION, clear, defaultSave, load, migrate, recordResult, save } from '../src/engine/storage';
+import {
+  SAVE_VERSION,
+  type SaveData,
+  cleanInitials,
+  clear,
+  defaultSave,
+  load,
+  migrate,
+  newPlayerId,
+  recordResult,
+  save,
+} from '../src/engine/storage';
 
 /** A minimal localStorage stand-in; the real one is not present under Node. */
 function fakeStorage(initial: Record<string, string> = {}): Storage {
@@ -16,6 +27,15 @@ function fakeStorage(initial: Record<string, string> = {}): Storage {
   } as Storage;
 }
 
+/**
+ * Every default save mints a fresh player id, so two of them are never equal.
+ * Blanking it is what lets these tests keep asserting on the whole shape; the
+ * id has its own tests below.
+ */
+function withoutId(data: SaveData): SaveData {
+  return { ...data, playerId: '' };
+}
+
 beforeEach(() => {
   vi.stubGlobal('localStorage', fakeStorage());
 });
@@ -27,9 +47,9 @@ describe('migrate', () => {
   });
 
   it('falls back to defaults for junk', () => {
-    expect(migrate(null)).toEqual(defaultSave());
-    expect(migrate('nonsense')).toEqual(defaultSave());
-    expect(migrate(42)).toEqual(defaultSave());
+    expect(withoutId(migrate(null))).toEqual(withoutId(defaultSave()));
+    expect(withoutId(migrate('nonsense'))).toEqual(withoutId(defaultSave()));
+    expect(withoutId(migrate(42))).toEqual(withoutId(defaultSave()));
   });
 
   it('repairs a partially written save rather than discarding it', () => {
@@ -55,6 +75,49 @@ describe('migrate', () => {
   });
 });
 
+describe('the world board identity', () => {
+  it('mints a player id the server would accept', () => {
+    expect(newPlayerId()).toMatch(/^[0-9a-f]{16}$/);
+    expect(defaultSave().playerId).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('gives each device its own id', () => {
+    expect(newPlayerId()).not.toBe(newPlayerId());
+  });
+
+  it('keeps the id a returning player already had', () => {
+    const id = 'a1b2c3d4e5f60718';
+    expect(migrate({ playerId: id }).playerId).toBe(id);
+  });
+
+  it('replaces an id the server would reject', () => {
+    // A version 1 save has no id at all, and a tampered one may have nonsense.
+    expect(migrate({}).playerId).toMatch(/^[0-9a-f]{16}$/);
+    expect(migrate({ playerId: 'ROXY' }).playerId).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('starts with no initials and nothing shared', () => {
+    const fresh = defaultSave();
+    expect(fresh.initials).toBe('');
+    expect(fresh.settings.share).toBe('ask');
+  });
+
+  it('only remembers a sharing choice that was actually made', () => {
+    expect(migrate({ settings: { share: 'yes' } }).settings.share).toBe('yes');
+    expect(migrate({ settings: { share: 'no' } }).settings.share).toBe('no');
+    expect(migrate({ settings: { share: 'maybe' } }).settings.share).toBe('ask');
+    expect(migrate({ settings: {} }).settings.share).toBe('ask');
+  });
+
+  it('cleans initials to what the board can show', () => {
+    expect(cleanInitials('rox')).toBe('ROX');
+    expect(cleanInitials('roxy the dog')).toBe('ROX');
+    expect(cleanInitials('a-1!')).toBe('A1');
+    expect(cleanInitials(undefined)).toBe('');
+    expect(migrate({ initials: 'r o x y' }).initials).toBe('ROX');
+  });
+});
+
 describe('load and save', () => {
   it('round-trips through storage', () => {
     const data = recordResult(defaultSave(), 'w2-3', 12_000, 44_000, 60, 3);
@@ -63,12 +126,12 @@ describe('load and save', () => {
   });
 
   it('returns a default save when nothing is stored', () => {
-    expect(load()).toEqual(defaultSave());
+    expect(withoutId(load())).toEqual(withoutId(defaultSave()));
   });
 
   it('survives corrupt JSON in the slot', () => {
     vi.stubGlobal('localStorage', fakeStorage({ 'roxy-run:save': '{ not json' }));
-    expect(load()).toEqual(defaultSave());
+    expect(withoutId(load())).toEqual(withoutId(defaultSave()));
   });
 
   it('survives storage being unavailable entirely', () => {
@@ -80,7 +143,7 @@ describe('load and save', () => {
         throw new Error('blocked');
       },
     } as unknown as Storage);
-    expect(load()).toEqual(defaultSave());
+    expect(withoutId(load())).toEqual(withoutId(defaultSave()));
     expect(save(defaultSave())).toBe(false);
   });
 });
@@ -115,10 +178,10 @@ describe('recordResult', () => {
 describe('clear', () => {
   it('wipes progress so the next load is a fresh start', () => {
     save(recordResult(defaultSave(), 'w3-3', 9000, 30_000, 100, 3));
-    expect(load()).not.toEqual(defaultSave());
+    expect(withoutId(load())).not.toEqual(withoutId(defaultSave()));
 
     expect(clear()).toBe(true);
-    expect(load()).toEqual(defaultSave());
+    expect(withoutId(load())).toEqual(withoutId(defaultSave()));
   });
 
   it('reports failure rather than throwing when storage is blocked', () => {

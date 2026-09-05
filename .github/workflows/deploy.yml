@@ -29,6 +29,7 @@ jobs:
           cache-dependency-path: |
             games/roxy-run/package-lock.json
             games/poop-patrol/package-lock.json
+            server/package-lock.json
 
       - name: Install (roxy-run)
         working-directory: games/roxy-run
@@ -41,6 +42,10 @@ jobs:
       - name: Build (roxy-run)
         working-directory: games/roxy-run
         run: npm run build
+        env:
+          # The world board is off unless this repository variable is set, so a
+          # fork builds a perfectly good offline game without any of this.
+          VITE_LEADERBOARD_URL: ${{ vars.LEADERBOARD_URL }}
 
       - name: Install (poop-patrol)
         working-directory: games/poop-patrol
@@ -52,6 +57,21 @@ jobs:
 
       - name: Build (poop-patrol)
         working-directory: games/poop-patrol
+        run: npm run build
+
+      # The leaderboard API deploys from Vercel, not from here, but its tests
+      # guard the level table the game shares with it - so a level added to the
+      # game and not to the server fails this build rather than production.
+      - name: Install (server)
+        working-directory: server
+        run: npm ci
+
+      - name: Test (server)
+        working-directory: server
+        run: npm test
+
+      - name: Type-check (server)
+        working-directory: server
         run: npm run build
 
       - name: Assemble site

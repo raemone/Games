@@ -4,6 +4,9 @@ Small browser games, deployed to GitHub Pages on every push to `main`.
 
 **Play:** https://raemone.github.io/Games/
 
+One of them has a backend: Roxy Run's world board runs as Vercel functions in
+[`server/`](server/). Everything else is static and stays that way.
+
 ---
 
 ## Roxy Run
@@ -44,7 +47,7 @@ per level are saved.
 
 ```
 games/roxy-run/
-  src/engine/     loop, renderer, input, audio, camera, save
+  src/engine/     loop, renderer, input, audio, camera, save, world board
   src/game/       physics, collision, entities, scoring, drawing, screens
   src/levels/     ASCII level segments and the nine level definitions
   tools/          the art pipeline: pixel data in, PNGs out
@@ -65,6 +68,10 @@ npm run build    # type-check and production build
 npm run art      # regenerate the sprite PNGs from tools/
 ```
 
+The world board is off unless `VITE_LEADERBOARD_URL` points at one. To develop
+against a local board, run `npm run serve` in `server/` and start the game with
+`VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev`.
+
 Levels are ASCII art. `src/levels/segments.ts` holds reusable 24x20 tile chunks
 and `src/levels/index.ts` lists which chunks each level is made of, so a new
 level is a line of names. A test asserts every segment joins flush to its
@@ -75,11 +82,43 @@ from shapes, and `npm run art` writes the sheets and a TypeScript index of where
 each animation sits. Editing a number in that file and re-running it repaints
 every frame.
 
+### The world board
+
+Every level has a global top ten, open from the level select screen. It is the
+one part of this repository with a backend: a Vercel function and a Redis
+sorted set, in [`server/`](server/), which has its own README.
+
+A run is posted as a score, a time and up to three characters. No name, no
+account, no email — initials are the arcade convention this game is already
+pretending to be from, they need no keyboard on a tablet, and they are the least
+a leaderboard can know while still being a leaderboard. A device is a random id
+generated on first play and kept in `localStorage`; clearing the browser's data
+makes a new player, which is the honest trade for having no accounts at all.
+
+Nothing is posted until someone says so. The first time there is a run to send,
+the game asks once — at the end of a level, where the question is about
+something concrete rather than a settings toggle nobody reads — and remembers
+the answer. Answer no and the game never mentions it again; both the answer and
+the initials can be changed from the board screen afterwards.
+
+Everything about it is optional at every level. The board URL is a build-time
+variable, so a build without it has no board at all and no code path that tries;
+a request that fails, times out or comes back malformed becomes "could not reach
+the board" rather than an error, and the game never waits for the network to
+show a result. The results panel appears the moment a level ends, and the rank
+arrives a second later if it arrives.
+
+What stops someone posting a score they never earned is worth being straight
+about: plausibility checks and rate limits, not proof. The
+[server README](server/README.md) says exactly what is enforced and what it
+would take to do better.
+
 ### Saving
 
 Progress is kept in the browser's `localStorage`, on the device. There is no
-server and no account, so nothing about who is playing ever leaves the tablet.
-The trade-off is that progress does not follow you from one device to another.
+account, so nothing about who is playing ever leaves the tablet except a run you
+explicitly post to the world board. The trade-off is that progress does not
+follow you from one device to another.
 
 ---
 
