@@ -37,10 +37,14 @@ describe('submit', () => {
     expect(await store.count('w1-2')).toBe(0);
   });
 
-  it('takes the newest initials for a returning player', async () => {
+  it('keeps the name a player first posted under, whatever a later run says', async () => {
+    // The name belongs to the id, and the id belongs to one child. A second
+    // set of initials arriving on the same id is an older client confusing a
+    // device for a player - taking it would rename every score that id holds.
     await store.submit('w1-1', entry('a'.repeat(16), 100, 60_000, 'ROX'));
     await store.submit('w1-1', entry('a'.repeat(16), 200, 60_000, 'RAE'));
-    expect((await store.top('w1-1', 10))[0]?.initials).toBe('RAE');
+
+    expect((await store.top('w1-1', 10))[0]?.initials).toBe('ROX');
   });
 });
 

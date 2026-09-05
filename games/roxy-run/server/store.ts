@@ -131,7 +131,14 @@ export class RedisStore implements Store {
     await this.redis.pipeline([
       ['ZADD', scoreKey(levelId), 'GT', 'CH', entry.score, entry.playerId],
       ['ZADD', timeKey(levelId), 'LT', 'CH', entry.timeMs, entry.playerId],
-      ['HSET', NAMES_KEY, entry.playerId, entry.initials],
+      // HSETNX, not HSET: a player's name is fixed the first time they post.
+      //
+      // Initials pick the player now, so an id's name never legitimately
+      // changes - and a tablet running the cached older build still thinks one
+      // device is one player. Were this HSET, that tablet would rename every
+      // score its id ever posted each time a child typed different initials,
+      // which is the bug this pair of changes exists to kill.
+      ['HSETNX', NAMES_KEY, entry.playerId, entry.initials],
     ]);
   }
 
@@ -262,7 +269,8 @@ export class MemoryStore implements Store {
     const previous = board.get(entry.playerId);
     board.set(entry.playerId, {
       playerId: entry.playerId,
-      initials: entry.initials,
+      // First name posted wins, matching HSETNX above.
+      initials: previous?.initials ?? entry.initials,
       score: Math.max(previous?.score ?? 0, entry.score),
       timeMs: previous ? Math.min(previous.timeMs, entry.timeMs) : entry.timeMs,
     });

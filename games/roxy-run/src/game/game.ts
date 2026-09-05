@@ -43,7 +43,6 @@ type Screen =
   | 'complete'
   | 'gameOver'
   | 'finished'
-  | 'confirmReset'
   | 'board'
   | 'initials'
   | 'askShare';
@@ -166,9 +165,8 @@ export class Game {
         if (ready && (state.confirmPressed || tap)) this.go('select');
         break;
 
-      case 'confirmReset':
       case 'askShare':
-        // Deliberately inert: only the buttons decide these two. A tap-anywhere
+        // Deliberately inert: only the buttons decide this one. A tap-anywhere
         // shortcut on a question about posting a child's score is not a
         // shortcut, it is an answer nobody gave.
         break;
@@ -210,15 +208,6 @@ export class Game {
         break;
       case 'restart':
         this.retryLevel();
-        break;
-      case 'reset':
-        this.go('confirmReset');
-        break;
-      case 'resetYes':
-        this.resetProgress();
-        break;
-      case 'resetNo':
-        this.go('select');
         break;
       case 'play':
         this.go('select');
@@ -266,28 +255,6 @@ export class Game {
     this.initialsSlot = slot;
     if (match[1] === 'slot') return;
     this.initialsChars[slot] = stepCharacter(this.initialsChars[slot] ?? 'A', match[1] === 'up' ? 1 : -1);
-  }
-
-  /**
-   * Wipe every saved score and re-lock the worlds. Only reachable behind a
-   * confirmation, because on a shared tablet this is one tap away from
-   * destroying a sibling's progress.
-   */
-  private resetProgress(): void {
-    storage.clear();
-    this.save = storage.defaultSave();
-    this.audio.setMuted(this.save.settings.muted);
-    this.audio.stopTune();
-    this.levelIndex = 0;
-    this.run = createRun();
-    this.session = null;
-    this.world = null;
-    // A wiped save is a new player id, so nothing on screen still belongs to
-    // whoever was here before.
-    this.board = null;
-    this.pending = null;
-    this.standing = null;
-    this.go('select');
   }
 
   private toggleMute(): void {
@@ -404,8 +371,12 @@ export class Game {
   }
 
   private commitInitials(): void {
-    this.save = { ...this.save, initials: storage.cleanInitials(this.initialsChars.join('')) };
+    // Switches player as well as label: these initials get their own id, so
+    // the runs already on the board keep the name they were posted under.
+    this.save = storage.withInitials(this.save, this.initialsChars.join(''));
     storage.save(this.save);
+    // The last player's rank is not this one's.
+    this.standing = null;
     if (this.afterInitials === 'post') {
       this.postPending();
       return;
@@ -614,7 +585,6 @@ export class Game {
   render(): void {
     const layout = this.renderer.layout;
     const screenCtx = this.renderer.screen;
-    let resetButton: UiButton | null = null;
     /** Buttons belonging to a full-screen menu, kept out of the overlay row. */
     const extraButtons: UiButton[] = [];
 
@@ -635,7 +605,6 @@ export class Game {
         // find it, a child skimming for the next level will not.
         const margin = uiScale(layout) * 0.8;
         const bottom = layout.height - margin - layout.insets.bottom;
-        resetButton = drawTextButton(screenCtx, layout, margin, bottom, 'reset', 'Erase scores', true);
         // Top left, where a back control belongs, and clear of the mute and
         // pause icons in the opposite corner.
         extraButtons.push(
@@ -676,7 +645,7 @@ export class Game {
 
     const hudVisible =
       this.session !== null &&
-      !['title', 'select', 'finished', 'confirmReset', 'board', 'initials'].includes(this.screen);
+      !['title', 'select', 'finished', 'board', 'initials'].includes(this.screen);
     if (hudVisible && this.session) drawHud(screenCtx, layout, this.session, this.sprites);
 
     this.buttons = this.renderOverlays();
@@ -691,7 +660,6 @@ export class Game {
         ...drawCornerControls(screenCtx, layout, this.save.settings.muted, playing, hudVisible),
       ];
     }
-    if (resetButton) this.buttons = [...this.buttons, resetButton];
     if (extraButtons.length > 0) this.buttons = [...this.buttons, ...extraButtons];
 
     // The pad is only useful while playing; on the menus it covers the cards.
@@ -874,30 +842,6 @@ export class Game {
             { id: 'levels', text: 'Levels' },
           ],
           'retry',
-        );
-
-      case 'confirmReset':
-        drawOverlay(
-          ctx,
-          layout,
-          {
-            title: 'Erase everything?',
-            lines: [
-              'Every best score and time will be lost,',
-              'and worlds 2 and 3 will be locked again.',
-            ],
-          },
-          this.tick,
-        );
-        return drawButtonRow(
-          ctx,
-          layout,
-          buttonRow,
-          [
-            { id: 'resetNo', text: 'No, keep it' },
-            { id: 'resetYes', text: 'Yes, erase it' },
-          ],
-          'resetNo',
         );
 
       case 'finished':

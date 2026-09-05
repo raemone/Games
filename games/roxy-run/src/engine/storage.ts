@@ -37,14 +37,30 @@ export interface Settings {
 export interface SaveData {
   readonly version: number;
   /**
-   * A random id for this device, so the board can recognise a returning player
-   * without knowing anything about them. Not a login: clearing the browser's
-   * storage makes a new player, which is the honest trade for having no
+   * The id currently posting to the world board.
+   *
+   * A random id rather than an account, so the board can recognise a returning
+   * player without knowing anything about them. Clearing the browser's storage
+   * makes new players of everyone, which is the honest trade for having no
    * accounts at all.
    */
   readonly playerId: string;
   /** Up to three characters shown on the world board. Empty until chosen. */
   readonly initials: string;
+  /**
+   * Every set of initials used on this device, and the id that belongs to it.
+   *
+   * One tablet gets passed between children, and each of them is a different
+   * player. Tying the id to the device instead made them one: because every
+   * score is stored under the id, typing new initials renamed every score the
+   * tablet had ever posted, on every board, to whoever typed last.
+   *
+   * So the initials pick the player. New initials mean a new id and a fresh
+   * set of scores; the old ones keep the name they were posted under. Typing a
+   * set again returns to that player, which is what makes handing the tablet
+   * back and forth work.
+   */
+  readonly players: Readonly<Record<string, string>>;
   /** Highest world number the player may enter, 1-based. */
   readonly unlockedWorld: number;
   /** Per-level records keyed by level id. */
@@ -58,6 +74,7 @@ export function defaultSave(): SaveData {
     version: SAVE_VERSION,
     playerId: newPlayerId(),
     initials: '',
+    players: {},
     unlockedWorld: 1,
     levels: {},
     totalBones: 0,
@@ -84,6 +101,33 @@ export function cleanInitials(raw: unknown): string {
 
 function sharePreference(value: unknown): SharePreference {
   return value === 'yes' || value === 'no' ? value : 'ask';
+}
+
+/**
+ * Switch the device to whoever these initials belong to.
+ *
+ * Returns the save unchanged in every way but the player: their id, ready for
+ * the next run to be posted under. Initials never used here before get a new
+ * id, so their scores start empty rather than inheriting someone else's.
+ *
+ * Pure, because this is the rule the whole bug turned on and it should be
+ * readable and testable without a browser.
+ */
+export function withInitials(data: SaveData, raw: string): SaveData {
+  const initials = cleanInitials(raw);
+  if (initials === '') return data;
+
+  // Before anyone has chosen, the device's starting id is nobody's yet - so
+  // the first player keeps it rather than stranding it.
+  const unclaimed = data.initials === '' && Object.keys(data.players).length === 0;
+  const playerId = data.players[initials] ?? (unclaimed ? data.playerId : newPlayerId());
+
+  return {
+    ...data,
+    initials,
+    playerId,
+    players: { ...data.players, [initials]: playerId },
+  };
 }
 
 function num(value: unknown, fallback: number): number {
@@ -130,10 +174,26 @@ export function migrate(raw: unknown): SaveData {
       ? input.playerId
       : base.playerId;
 
+  const initials = cleanInitials(input.initials);
+  const players: Record<string, string> = {};
+  if (typeof input.players === 'object' && input.players !== null) {
+    for (const [key, value] of Object.entries(input.players as Record<string, unknown>)) {
+      const name = cleanInitials(key);
+      if (name !== '' && typeof value === 'string' && /^[0-9a-f]{16}$/.test(value)) {
+        players[name] = value;
+      }
+    }
+  }
+  // A save from before the board knew about several players has one set of
+  // initials and one id: that pairing is the first player, and keeping it here
+  // is what stops the upgrade from orphaning the scores already posted.
+  if (initials !== '' && players[initials] === undefined) players[initials] = playerId;
+
   return {
     version: SAVE_VERSION,
     playerId,
-    initials: cleanInitials(input.initials),
+    initials,
+    players,
     unlockedWorld: Math.max(1, Math.floor(num(input.unlockedWorld, 1))),
     levels,
     totalBones: Math.max(0, Math.floor(num(input.totalBones, 0))),
