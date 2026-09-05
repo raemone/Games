@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PHYS, createBody, launch, setRolling, step, type Body } from '../src/game/physics';
 import { NO_INPUT, input, tileMap } from './helpers';
+import { TILE } from '../src/game/collision';
 import type { PhysicsInput } from '../src/game/physics';
 import type { TileMap } from '../src/game/collision';
 
@@ -323,5 +324,49 @@ describe('climbing', () => {
     run(body, 200, { right: true }, lip);
     expect(body.x).toBeGreaterThan(7 * 16);
     expect(body.y).toBeLessThan(floorY);
+  });
+});
+
+describe('springs', () => {
+  /**
+   * The spring in the `spring` segment has to lift Roxy onto a shelf four
+   * tiles up. Softening the bounce is a feel decision, but drop it too far and
+   * that shelf - and the bones on it - become unreachable, so the height is
+   * pinned here rather than left to be discovered by a stuck child.
+   */
+  const SHELF_RISE = 4 * TILE;
+
+  it('lifts Roxy clear of the shelf above it', () => {
+    const body = standing();
+    const floorY = body.y;
+    launch(body, 0, -PHYS.springForce);
+
+    let peak = body.y;
+    for (let i = 0; i < 200; i++) {
+      step(body, NO_INPUT, GROUND);
+      peak = Math.min(peak, body.y);
+      if (body.grounded) break;
+    }
+
+    const rise = floorY - peak;
+    expect(rise, 'a spring must clear the shelf it is placed under').toBeGreaterThan(
+      SHELF_RISE + TILE,
+    );
+  });
+
+  it('is gentler than it used to be, so the landing stays in view', () => {
+    const body = standing();
+    const floorY = body.y;
+    launch(body, 0, -PHYS.springForce);
+
+    let peak = body.y;
+    for (let i = 0; i < 200; i++) {
+      step(body, NO_INPUT, GROUND);
+      peak = Math.min(peak, body.y);
+      if (body.grounded) break;
+    }
+
+    // Under half the 270px screen, so Roxy never leaves the top of it.
+    expect(floorY - peak).toBeLessThan(135);
   });
 });

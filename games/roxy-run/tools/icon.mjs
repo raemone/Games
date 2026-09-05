@@ -75,16 +75,17 @@ export function roxyIcon() {
       rows.push(pad('o' + 'M'.repeat(14) + 'o'));
       continue;
     }
+    // Her cream chest, not a collar - she stopped wearing one.
     if (y === 24) {
-      rows.push(pad('o' + 'R'.repeat(14) + 'o'));
+      rows.push(pad('o' + 'C'.repeat(14) + 'o'));
       continue;
     }
     if (y === 25) {
-      rows.push(pad('o' + 'R'.repeat(6) + 'YY' + 'R'.repeat(6) + 'o'));
+      rows.push(pad('o' + 'C'.repeat(14) + 'o'));
       continue;
     }
     if (y === 26) {
-      rows.push(pad('o' + 'R'.repeat(12) + 'o'));
+      rows.push(pad('o' + 'C'.repeat(12) + 'o'));
       continue;
     }
     if (y === 27) {

@@ -14,8 +14,7 @@ export const PAL = {
   W: '#ffffff', // eye highlight
   N: '#2b1b10', // nose
   T: '#e8687a', // tongue
-  R: '#e8749c', // collar - pink, and a full band rather than a slash at the throat
-  r: '#c04f76', // collar shadow
+  R: '#d94b4b', // spring pads, the kennel roof, the checkpoint bowl
   Y: '#ffd88a', // collar tag / sparkle
   S: '#8a93a6', // stone and metal
   // The bone. Near-black outline and a grey rim rather than the warm brown
@@ -25,6 +24,10 @@ export const PAL = {
   // Roxy's own outline: a cool dark navy rather than the warm brown used on
   // the scenery, which is what makes her read as the foreground character.
   B: '#2f3d4f',
+  // The star power-up: brighter and cooler-gold than Roxy's own palette, so it
+  // reads as a special item rather than as another piece of her.
+  j: '#ffd633',
+  J: '#e8a41e',
   // Ducks. White everywhere - they are the same bird in every world.
   q: '#f4f8fc', // duck white
   Q: '#ccd9e6', // duck shading

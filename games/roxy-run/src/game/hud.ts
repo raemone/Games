@@ -56,11 +56,41 @@ export function drawHud(
 
   // The opening announcement takes precedence: while it is up the chase has
   // not set off yet, so the proximity warning would be nonsense.
+  if (session.invincible > 0) drawStarTimer(ctx, layout, session, size, sprites);
+
   if (session.announcingChase) {
     drawChaseIntro(ctx, layout, session, size);
   } else if (session.chaseIsClose) {
     drawChaseWarning(ctx, layout, session, size);
   }
+}
+
+/** Star power remaining, shown as the star itself plus a countdown. */
+function drawStarTimer(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  session: Session,
+  size: number,
+  sprites: Sprites,
+): void {
+  const star = sprites.propSize('star');
+  const scale = Math.max(1, Math.round((size * 1.2) / star.h));
+  const x = layout.width / 2 - (star.w * scale) / 2;
+  const y = layout.insets.top + size * 0.6;
+
+  sprites.drawPropScaled(ctx, 'star', x, y, scale);
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = `800 ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = '#ffd633';
+  ctx.fillText(
+    `${Math.ceil(session.invincible / 60)}`,
+    layout.width / 2,
+    y + star.h * scale + size * 0.9,
+  );
+  ctx.restore();
+  ctx.textAlign = 'left';
 }
 
 /**

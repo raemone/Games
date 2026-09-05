@@ -73,6 +73,7 @@ function buildProps() {
     ['spring', props.spring(false)],
     ['springUp', props.spring(true)],
     ['spike', props.spike()],
+    ['star', props.star()],
     ['crate', props.crate()],
     ['checkpoint', props.checkpoint(false)],
     ['checkpointLit', props.checkpoint(true)],

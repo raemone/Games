@@ -252,6 +252,17 @@ export class WorldRenderer {
       case 'spike':
         this.sprites.drawProp(ctx, 'spike', x, y + 5);
         break;
+      case 'star':
+        // Bobs and turns on the spot so it catches the eye as something rarer
+        // than a bone.
+        this.sprites.drawPropCentred(
+          ctx,
+          'star',
+          x,
+          y + Math.sin(entity.t / 14) * 3,
+          Math.floor(entity.t / 20) % 2 === 0,
+        );
+        break;
       case 'crate':
         this.sprites.drawPropCentred(ctx, 'crate', x, y);
         break;
@@ -347,6 +358,8 @@ export class WorldRenderer {
     const x = body.x - camX;
     const y = body.y - camY;
 
+    if (session.invincible > 0) this.drawStarSparkles(ctx, session, x, y);
+
     // Lean into the slope while grounded; the sprite is drawn upright otherwise.
     if (body.grounded && Math.abs(body.angle) > 0.05 && !body.rolling) {
       ctx.save();
@@ -358,6 +371,34 @@ export class WorldRenderer {
     }
 
     this.sprites.drawRoxy(ctx, this.animation, this.frame, x, y, body.facing === -1);
+  }
+
+  /**
+   * Star power: sparkles orbiting Roxy, thinning out as it runs down so the
+   * end is visible before it arrives rather than being a surprise.
+   */
+  private drawStarSparkles(
+    ctx: CanvasRenderingContext2D,
+    session: Session,
+    x: number,
+    y: number,
+  ): void {
+    const ending = session.invincible < 60;
+    if (ending && Math.floor(session.invincible / 5) % 2 === 0) return;
+
+    const spin = this.weatherTick / 6;
+    for (let i = 0; i < 6; i++) {
+      const angle = spin + (i * Math.PI * 2) / 6;
+      const radius = 17 + Math.sin(this.weatherTick / 9 + i) * 3;
+      const sx = Math.round(x + Math.cos(angle) * radius);
+      const sy = Math.round(y + Math.sin(angle) * radius * 0.8);
+
+      // A little cross rather than a dot: at 480x270 a two-pixel square is
+      // easy to lose against busy scenery.
+      ctx.fillStyle = i % 2 === 0 ? '#ffd633' : '#ffffff';
+      ctx.fillRect(sx - 1, sy, 3, 1);
+      ctx.fillRect(sx, sy - 1, 1, 3);
+    }
   }
 
   private drawPopups(

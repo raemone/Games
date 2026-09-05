@@ -32,6 +32,8 @@ const SIZES: Readonly<Record<EntityKind, { w: number; h: number }>> = {
   // end of a level must be impossible to miss, however you arrive at it.
   goal: { w: 30, h: 640 },
   crate: { w: 16, h: 16 },
+  // Generous, like the bone: a power-up you walked past would just annoy.
+  star: { w: 20, h: 20 },
   platformH: { w: 48, h: 12 },
   platformV: { w: 48, h: 12 },
 };
@@ -39,6 +41,17 @@ const SIZES: Readonly<Record<EntityKind, { w: number; h: number }>> = {
 const WALKER_SPEED = 0.45;
 const FLYER_SPEED = 0.7;
 const FLYER_AMPLITUDE = 22;
+/**
+ * How far either side of its spawn a flyer will drift.
+ *
+ * Without a bound they only ever turn at walls, so one can wander the length of
+ * a level and end up hovering over a pit - where a hit knocks the player
+ * backwards into the hole. A bounded patrol is also simply easier to read.
+ *
+ * Three tiles: the banks either side of a pit are eight tiles wide, so this is
+ * what lets a flyer patrol one without its range reaching open air.
+ */
+const FLYER_RANGE = 48;
 const PLATFORM_SPEED = 0.8;
 const PLATFORM_RANGE = 64;
 
@@ -136,7 +149,8 @@ function patrol(entity: Entity, map: TileMap): void {
 /** Drift horizontally on a sine wave, bouncing off walls. */
 function hover(entity: Entity, map: TileMap): void {
   const next = entity.x + entity.vx;
-  if (isWallAt(map, next + Math.sign(entity.vx) * (SIZES.flyer.w / 2), entity.y)) {
+  const outOfRange = Math.abs(next - entity.homeX) > FLYER_RANGE;
+  if (outOfRange || isWallAt(map, next + Math.sign(entity.vx) * (SIZES.flyer.w / 2), entity.y)) {
     entity.vx = -entity.vx;
   } else {
     entity.x = next;

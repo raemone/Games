@@ -28,19 +28,20 @@ export interface Region {
   readonly h: number;
 }
 
-export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB';
+export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'star' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB';
 
 export const PROPS: Readonly<Record<PropName, Region>> = {
   bone: { x: 0, y: 0, w: 20, h: 11 },
   spring: { x: 21, y: 0, w: 16, h: 16 },
   springUp: { x: 38, y: 0, w: 16, h: 16 },
   spike: { x: 55, y: 0, w: 16, h: 16 },
-  crate: { x: 72, y: 0, w: 16, h: 16 },
-  checkpoint: { x: 89, y: 0, w: 16, h: 32 },
-  checkpointLit: { x: 106, y: 0, w: 16, h: 32 },
-  goal: { x: 123, y: 0, w: 32, h: 48 },
-  walkerA: { x: 156, y: 0, w: 24, h: 24 },
-  walkerB: { x: 181, y: 0, w: 24, h: 24 },
-  flyerA: { x: 206, y: 0, w: 24, h: 24 },
-  flyerB: { x: 231, y: 0, w: 24, h: 24 },
+  star: { x: 72, y: 0, w: 16, h: 16 },
+  crate: { x: 89, y: 0, w: 16, h: 16 },
+  checkpoint: { x: 106, y: 0, w: 16, h: 32 },
+  checkpointLit: { x: 123, y: 0, w: 16, h: 32 },
+  goal: { x: 140, y: 0, w: 32, h: 48 },
+  walkerA: { x: 173, y: 0, w: 24, h: 24 },
+  walkerB: { x: 198, y: 0, w: 24, h: 24 },
+  flyerA: { x: 223, y: 0, w: 24, h: 24 },
+  flyerB: { x: 0, y: 49, w: 24, h: 24 },
 };

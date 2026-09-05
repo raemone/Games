@@ -21,7 +21,8 @@ export type EntityKind =
   | 'goal'
   | 'crate'
   | 'platformH'
-  | 'platformV';
+  | 'platformV'
+  | 'star';
 
 /** Characters that spawn an entity rather than a tile. The tile stays empty. */
 export const ENTITY_CHARS: Readonly<Record<string, EntityKind>> = {
@@ -38,6 +39,7 @@ export const ENTITY_CHARS: Readonly<Record<string, EntityKind>> = {
   X: 'crate',
   H: 'platformH',
   I: 'platformV',
+  '*': 'star',
 };
 
 /** Roxy's start position. */

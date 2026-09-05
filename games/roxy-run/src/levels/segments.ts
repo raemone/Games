@@ -9,8 +9,9 @@
  *
  * Terrain: # solid  / rise 45  L fall 45  a,b rise 22.5  c,d fall 22.5
  *          _ half height  = one-way platform  - shallow lip
- * Things:  P spawn  G goal  o bone  S spring  < > side springs  ~ boost
- *          E walker  V flyer  ^ spike  C checkpoint  X crate  H,I platforms
+ * Things:  P spawn  G goal  o bone  * star  S spring  < > side springs
+ *          ~ boost  E walker  V flyer  ^ spike  C checkpoint  X crate
+ *          H,I moving platforms
  */
 
 export const SEGMENT_WIDTH = 24;
@@ -60,7 +61,7 @@ export const SEGMENTS = {
     '                        ',
     '                        ',
     '        o o o o         ',
-    '                        ',
+    '   X            X       ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -71,7 +72,7 @@ export const SEGMENTS = {
   hill: seg([
     '                        ',
     '          o o o         ',
-    '                        ',
+    '         E    E         ',
     '        /######L        ',
     '       /########L       ',
     '      /##########L      ',
@@ -81,14 +82,22 @@ export const SEGMENTS = {
     FLOOR,
   ]),
 
-  /** A gentler 22.5 degree rise, which keeps more speed than a 45. */
+  /**
+   * A gentle 22.5 degree rise that keeps more speed than a 45, and comes back
+   * down inside its own tiles.
+   *
+   * It used to end on the shelf. A three-tile drop at a segment join reads to a
+   * running player as a pit - you jump it - and the arc off the top carries
+   * clean over the next segment's near bank and into whatever hole it starts
+   * with. Every rise gets a matching fall.
+   */
   slope: seg([
     '                        ',
     '                        ',
-    '             o o o      ',
-    '           ab######     ',
-    '         ab########     ',
-    '       ab##########     ',
+    '          o o o o       ',
+    '           ab###cd      ',
+    '         ab#######cd    ',
+    '       ab###########cd  ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -102,16 +111,23 @@ export const SEGMENTS = {
     '                        ',
     '                        ',
     '      o o o o o o       ',
-    '#####L          /#######',
+    '#####L  E    E  /#######',
     FLOOR,
     FLOOR,
     FLOOR,
   ]),
 
-  /** A gap. Miss it and you fall out of the level. */
+  /**
+   * A gap. Miss it and you fall out of the level.
+   *
+   * The flyer guards the landing, not the approach or the pit itself. Over the
+   * pit it is a death trap - a hit knocks you backwards and barely up. On the
+   * near bank it is nearly as bad, because bopping it launches you into an arc
+   * that ends in the hole.
+   */
   gap: seg([
     '                        ',
-    '                        ',
+    '                   V    ',
     '        o o o o         ',
     '                        ',
     '                        ',
@@ -128,20 +144,20 @@ export const SEGMENTS = {
     '          o o           ',
     '                        ',
     '            H           ',
-    '#######        #########',
-    '#######        #########',
-    '#######        #########',
-    '#######        #########',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
   ]),
 
   /** Spring up to a high shelf stacked with bones. */
   spring: seg([
     '                        ',
-    '            o o o o     ',
-    '           =========    ',
+    '           o o o o o    ',
+    '          ==========    ',
     '                        ',
     '                        ',
-    '     S                  ',
+    '     S              S   ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -152,35 +168,43 @@ export const SEGMENTS = {
   walkers: seg([
     '                        ',
     '                        ',
-    '        o    o          ',
-    '                        ',
-    '      E         E       ',
+    '        o    o     o    ',
+    '           X            ',
+    '      E         E    E  ',
     FLOOR,
     FLOOR,
     FLOOR,
     FLOOR,
   ]),
 
-  /** Flyers over a gap - the awkward combination, on purpose. */
+  /**
+   * A pit guarded at both ends. The flyers sit over the banks, not the hole:
+   * one over open air turns a good jump into a fall, since a hit knocks you
+   * backwards. They make the approach and the landing awkward instead.
+   *
+   * Everything sits past the landing, and the near bank is left completely
+   * clear. A crate there stops you dead a stride before the jump; a flyer is
+   * worse, because bopping it launches you into an arc that ends in the hole.
+   */
   flyers: seg([
     '                        ',
-    '      V          V      ',
+    '                  V  V  ',
     '                        ',
     '         o o o          ',
-    '                        ',
-    '########        ########',
-    '########        ########',
-    '########        ########',
-    '########        ########',
+    '  *             X    X  ',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
   ]),
 
   /** Spikes on the floor. Jump them, or take the hit. */
   spikes: seg([
     '                        ',
-    '                        ',
-    '        o o o           ',
-    '                        ',
-    '        ^^^^            ',
+    '         o o o          ',
+    '        ======          ',
+    '                   o    ',
+    '        ^^^^     ^^^    ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -191,9 +215,9 @@ export const SEGMENTS = {
   crates: seg([
     '                        ',
     '                        ',
-    '                        ',
-    '       X      X         ',
-    '      oX  E   Xo        ',
+    '     X          X       ',
+    '     X  X     X X    X  ',
+    '    oX  X  E  X X o  X  ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -215,11 +239,11 @@ export const SEGMENTS = {
 
   /** Two routes: a high road on platforms, a low road past an enemy. */
   split: seg([
-    '                        ',
     '     o o o o o          ',
-    '   ==========           ',
-    '                  ====  ',
-    '        E      o        ',
+    '   ===========          ',
+    '                        ',
+    '              o  ====== ',
+    '     X  E      X     E  ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -230,14 +254,84 @@ export const SEGMENTS = {
   climb: seg([
     '                o o     ',
     '             ______     ',
-    '                        ',
+    '          o             ',
     '        ______          ',
+    '     o            E     ',
+    '  ______           X    ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** A flock of ducks, with a platform route over the top of them. */
+  duckpond: seg([
     '                        ',
-    '  ______                ',
+    '     o o    *   o o     ',
+    '    =====      =====    ',
+    '                        ',
+    '  E    E     E      E   ',
     FLOOR,
     FLOOR,
     FLOOR,
     FLOOR,
+  ]),
+
+  /** Stacked crates to smash through, with ducks patrolling between them. */
+  crateyard: seg([
+    '                        ',
+    '                        ',
+    '                        ',
+    '    X       X       X   ',
+    '  o X o  E  X o  E  X o ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** Three spike beds with stepping stones above - hop across or jump them. */
+  gauntlet: seg([
+    '                        ',
+    '  *   o    o    o       ',
+    '     ===  ===  ===      ',
+    '                        ',
+    '    ^^^   ^^^   ^^^     ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** Staggered platforms to climb, with ducks waiting underneath. */
+  towers: seg([
+    '        o    *   o      ',
+    '      ====     ====     ',
+    '                        ',
+    '  ====      ====        ',
+    '   o   E     o    E     ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /**
+   * A stepping stone in the middle of a pit, with flyers guarding the landing.
+   * One island rather than several: split into stones with gaps between them,
+   * the gaps have to be cleared from a standstill in mid-air, which is not a
+   * jump anyone can make.
+   */
+  bridge: seg([
+    '                        ',
+    '                  V  V  ',
+    '                        ',
+    '          o  o          ',
+    '          ====          ',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
+    '#########      #########',
   ]),
 
   /** Checkpoint. Always on flat ground so it cannot be missed. */

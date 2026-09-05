@@ -38,6 +38,37 @@ export function bone() {
   return g;
 }
 
+/**
+ * The star power-up. Hand-authored: a five-pointed star built from ellipses is
+ * a blob, and the points are the whole point.
+ */
+const STAR_ROWS = [
+  '      j      ',
+  '     jjj     ',
+  '     jjj     ',
+  '    jjjjj    ',
+  'jjjjjjjjjjjjj',
+  ' jjjjjjjjjjj ',
+  '  jjjjjjjjj  ',
+  '   jjjjjjj   ',
+  '   jjjjjjj   ',
+  '  jjj   jjj  ',
+  ' jjj     jjj ',
+  'jjj       jjj',
+];
+
+export function star() {
+  const g = new Grid(16, 16);
+  g.stamp(STAR_ROWS, 1, 2);
+  // Weight the lower half so it does not read as a flat cut-out.
+  g.shadeBelow('j', 'J', 1);
+  g.set(5, 6, 'W');
+  g.set(6, 6, 'W');
+  g.set(5, 7, 'W');
+  g.outline('n');
+  return g;
+}
+
 /** A springy pad. `sprung` is the squashed-and-released frame. */
 export function spring(sprung) {
   const g = new Grid(16, 16);

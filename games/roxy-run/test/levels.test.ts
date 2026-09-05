@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { LEVELS, WORLD_COUNT, levelById, levelsForWorld, nextLevel } from '../src/levels';
 import { parseLevel } from '../src/game/level';
-import { findFloor } from '../src/game/collision';
+import { TILE, findFloor } from '../src/game/collision';
 import { GROUND_ROW, SEGMENTS, SEGMENT_HEIGHT, SEGMENT_WIDTH } from '../src/levels/segments';
+
+/** Mirrors FLYER_RANGE in entities.ts - how far a flyer drifts from its spawn. */
+const FLYER_PATROL = 48;
+
+/** Clear ground a pit needs in front of it, so the jump can be built up to. */
+const RUN_UP = 140;
 
 const CASES = LEVELS.map((level) => [level.id, level] as const);
 
@@ -83,5 +89,92 @@ describe('segment geometry', () => {
     const rows = SEGMENTS[name];
     expect(rows).toHaveLength(SEGMENT_HEIGHT);
     for (const row of rows) expect(row).toHaveLength(SEGMENT_WIDTH);
+  });
+});
+
+describe('hazard placement', () => {
+  /**
+   * Being hit knocks Roxy backwards and only slightly upward, so a flyer whose
+   * patrol reaches open air is a death trap however well the player jumps -
+   * you lose the bones and the fall. Flyers must stay over ground they could
+   * land on, across their whole patrol rather than only where they spawn.
+   */
+  it.each(CASES)('%s keeps every flyer over solid ground', (_id, level) => {
+    const parsed = parseLevel(level);
+    for (const flyer of parsed.entities.filter((e) => e.kind === 'flyer')) {
+      for (const offset of [-FLYER_PATROL, 0, FLYER_PATROL]) {
+        const ground = findFloor(parsed.map, flyer.x + offset, flyer.y, parsed.pixelHeight);
+        expect(ground, `flyer at x=${flyer.x} (offset ${offset}) is over a pit`).not.toBeNull();
+      }
+    }
+  });
+
+  /**
+   * The approach to a pit has to be empty.
+   *
+   * A crate or spike there stops Roxy dead, so she reaches the edge with no
+   * speed. A duck or a flyer is worse: bopping one launches her into an arc
+   * she cannot steer, and at low speed that arc ends in the hole. Either way
+   * the jump becomes unmakeable however well the level is played.
+   */
+  it.each(CASES)('%s leaves a clean run-up to every pit', (_id, level) => {
+    const parsed = parseLevel(level);
+    const groundY = GROUND_ROW * TILE - 8;
+    const isPit = (x: number): boolean =>
+      x >= 0 && x < parsed.pixelWidth && findFloor(parsed.map, x, groundY, parsed.pixelHeight) === null;
+
+    const blockers = parsed.entities.filter(
+      (e) => e.kind === 'crate' || e.kind === 'spike' || e.kind === 'walker' || e.kind === 'flyer',
+    );
+    for (let x = TILE; x < parsed.pixelWidth; x += TILE) {
+      // The left lip of a pit: solid here, open air one tile on.
+      if (isPit(x) || !isPit(x + TILE)) continue;
+      for (const blocker of blockers) {
+        // Flyers roam, so the whole patrol has to clear the approach.
+        const reach = blocker.kind === 'flyer' ? FLYER_PATROL : 0;
+        const distance = x - (blocker.x - reach);
+        expect(
+          distance > 0 && distance < RUN_UP,
+          `${level.id}: ${blocker.kind} at x=${blocker.x} is ${Math.round(distance)}px before the pit at x=${x}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it.each(CASES)('%s gives spikes a way past them', (_id, level) => {
+    const parsed = parseLevel(level);
+    for (const spike of parsed.entities.filter((e) => e.kind === 'spike')) {
+      // A spike bed wider than a jump would be impassable. Six tiles is well
+      // inside what Roxy clears from a standstill.
+      const run = parsed.entities.filter(
+        (e) => e.kind === 'spike' && Math.abs(e.y - spike.y) < 8 && e.x >= spike.x && e.x < spike.x + TILE * 6,
+      );
+      expect(run.length).toBeLessThanOrEqual(6);
+    }
+  });
+});
+
+describe('level density', () => {
+  it('gives every level a decent amount to do', () => {
+    for (const level of LEVELS) {
+      const parsed = parseLevel(level);
+      const things = parsed.entities.filter(
+        (e) => e.kind === 'walker' || e.kind === 'flyer' || e.kind === 'crate',
+      );
+      expect(things.length, `${level.id} feels empty`).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it('keeps the first level the gentlest of the nine', () => {
+    const hazardsIn = (id: string): number => {
+      const parsed = parseLevel(LEVELS.find((l) => l.id === id)!);
+      return parsed.entities.filter(
+        (e) => e.kind === 'spike' || e.kind === 'walker' || e.kind === 'flyer',
+      ).length;
+    };
+    const first = hazardsIn('w1-1');
+    for (const level of LEVELS.slice(1)) {
+      expect(first, `w1-1 is busier than ${level.id}`).toBeLessThanOrEqual(hazardsIn(level.id));
+    }
   });
 });

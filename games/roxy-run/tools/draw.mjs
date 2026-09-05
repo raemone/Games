@@ -118,7 +118,11 @@ export class Grid {
       const row = rows[y];
       for (let x = 0; x < row.length; x++) {
         const cell = row[x];
-        if (cell !== '.') this.set(dx + x, dy + y, cell);
+        // Both '.' and ' ' mean empty. Level segments use spaces and sprite
+        // rows use dots; treating only one as blank leaves the other sitting
+        // in the grid as an invisible solid, which the outline pass then draws
+        // a box around.
+        if (cell !== '.' && cell !== ' ') this.set(dx + x, dy + y, cell);
       }
     }
   }

@@ -49,6 +49,12 @@ export const PHYS = {
   /** Rolling stops below this. */
   unrollSpeed: 0.5,
   spindashChargeMax: 8,
+  /**
+   * Spring bounce. Softer than it was: springs used to fling Roxy most of a
+   * screen up, so the landing was off screen and unguessable. A test pins it
+   * between "clears the shelf above every spring" and "stays in view".
+   */
+  springForce: 7.5,
 } as const;
 
 export const STAND_RADIUS = { x: 10, y: 14 } as const;

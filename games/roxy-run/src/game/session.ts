@@ -6,7 +6,7 @@
 import { Camera } from '../engine/camera';
 import { findFloor } from './collision';
 import type { Audio } from '../engine/audio';
-import { type Body, type PhysicsInput, createBody, launch, setRolling, step } from './physics';
+import { PHYS, type Body, type PhysicsInput, createBody, launch, setRolling, step } from './physics';
 import { type Entity, boxOf, createEntities, isEnemy, overlaps, platformTop, updateEntity } from './entities';
 import type { Level } from './level';
 import { type Run, bopEnemy, collectBone, finishLevel, resetChain, respawn, takeHit } from './scoring';
@@ -18,7 +18,7 @@ export type SessionState = 'playing' | 'dying' | 'complete' | 'timeUp' | 'gameOv
 const INVULNERABLE_FRAMES = 110;
 /** How long the death animation plays before respawning. */
 const DYING_FRAMES = 100;
-const SPRING_FORCE = 11;
+
 const SIDE_SPRING_FORCE = 9;
 const BOOST_SPEED = 9;
 const BOP_BOUNCE = 6;
@@ -40,6 +40,8 @@ const CHASE_HEAD_START = 460;
 const CHASE_DELAY = 180;
 /** How close the chase has to get before it catches you. */
 const CHASE_REACH = 14;
+/** Five seconds of star power. */
+const STAR_TICKS = 5 * 60;
 
 /** A bone knocked loose by a hit. */
 export interface LooseBone {
@@ -71,6 +73,11 @@ export class Session {
 
   /** Ticks of invulnerability remaining. */
   invulnerable = 0;
+  /**
+   * Ticks of star power remaining. Stronger than the mercy invulnerability
+   * above: it also flattens whatever it touches, rather than only ignoring it.
+   */
+  invincible = 0;
   /** Counts down while dying, then respawns. */
   stateTimer = 0;
   /** Where a respawn puts Roxy - moved by checkpoints. */
@@ -145,6 +152,7 @@ export class Session {
     this.ticks += 1;
     this.run.elapsedMs = (this.ticks * 1000) / 60;
     if (this.invulnerable > 0) this.invulnerable -= 1;
+    if (this.invincible > 0) this.invincible -= 1;
 
     const wasGrounded = this.body.grounded;
     step(this.body, this.toPhysicsInput(input), this.level.map, this.theme.feel);
@@ -236,9 +244,17 @@ export class Session {
           else this.audio.play('bone');
           break;
 
+        case 'star':
+          entity.taken = true;
+          this.invincible = STAR_TICKS;
+          this.run.score += 200;
+          this.addPopup(entity.x, entity.y - 18, 'STAR!');
+          this.audio.play('star');
+          break;
+
         case 'spring':
           entity.t = 0;
-          launch(this.body, this.body.xsp, -SPRING_FORCE);
+          launch(this.body, this.body.xsp, -PHYS.springForce);
           this.audio.play('spring');
           break;
 
@@ -293,7 +309,8 @@ export class Session {
 
   /** Rolling or falling onto a crate breaks it; walking into it does not. */
   private hitCrate(entity: Entity): void {
-    const attacking = this.body.rolling || (!this.body.grounded && this.body.ysp > 0);
+    const attacking =
+      this.body.rolling || this.invincible > 0 || (!this.body.grounded && this.body.ysp > 0);
     if (!attacking) {
       // Solid: push Roxy back out the side she came in.
       const box = boxOf(entity);
@@ -318,7 +335,7 @@ export class Session {
     if (!isEnemy(entity.kind)) return;
 
     const fromAbove = !this.body.grounded && this.body.ysp > 0 && this.body.y < entity.y - 4;
-    const attacking = fromAbove || this.body.rolling;
+    const attacking = fromAbove || this.body.rolling || this.invincible > 0;
 
     if (!attacking) {
       this.hurt(entity.x);
@@ -337,7 +354,7 @@ export class Session {
   }
 
   private hurt(sourceX: number): void {
-    if (this.invulnerable > 0 || this.state !== 'playing') return;
+    if (this.invulnerable > 0 || this.invincible > 0 || this.state !== 'playing') return;
 
     const result = takeHit(this.run);
     this.camera.addShake(5);
@@ -386,9 +403,9 @@ export class Session {
 
     if (this.body.x - this.body.widthRadius > this.chaseX + CHASE_REACH) return;
 
-    // Caught: take a hit and get shoved clear, so the same tick cannot catch
-    // you again the moment the invulnerability ends.
-    if (this.invulnerable > 0) return;
+    // Caught. Star power stops the damage but must not stop the shove: left
+    // behind the wall, the player would be caught again the instant it ran out.
+    if (this.invulnerable > 0 && this.invincible === 0) return;
     this.hurt(this.chaseX);
     this.body.x = this.chaseX + CHASE_REACH + this.body.widthRadius + 24;
   }
@@ -484,6 +501,7 @@ export class Session {
     this.state = 'playing';
     respawn(this.run);
     this.invulnerable = INVULNERABLE_FRAMES / 2;
+    this.invincible = 0;
     this.body.x = this.checkpointX;
     this.body.y = this.checkpointY;
     this.body.gsp = 0;
@@ -520,6 +538,7 @@ export class Session {
     this.entities = createEntities(this.level);
     this.loose.length = 0;
     this.popups.length = 0;
+    this.invincible = 0;
     this.checkpointX = this.level.spawn.x;
     this.checkpointY = this.level.spawn.y;
     this.chaseX =

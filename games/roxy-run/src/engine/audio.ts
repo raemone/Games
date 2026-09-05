@@ -17,6 +17,7 @@ export type Sfx =
   | 'goal'
   | 'extraLife'
   | 'spindash'
+  | 'star'
   | 'select';
 
 /** How often the note scheduler wakes up, and how far ahead it queues. */
@@ -125,6 +126,13 @@ export class Audio {
         break;
       case 'spindash':
         this.blip('sawtooth', 120, 700, t, 0.25, 0.16);
+        break;
+      case 'star':
+        // A rising arpeggio - the same shape as the extra-life jingle but
+        // brighter and quicker, so the two are not confused.
+        ['E5', 'A5', 'C#6', 'E6', 'A6'].forEach((note, i) => {
+          this.blip('square', freq(note), freq(note), t + i * 0.06, 0.16, 0.19);
+        });
         break;
       case 'select':
         this.blip('square', 700, 700, t, 0.05, 0.16);
