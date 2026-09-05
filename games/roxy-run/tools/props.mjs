@@ -69,6 +69,68 @@ export function star() {
   return g;
 }
 
+/**
+ * A pigeon: plump, slate grey, with a sheen at the neck. Drawn deliberately
+ * rounder and softer than the falcon so the two never read as the same bird.
+ */
+export function pigeon(up) {
+  const g = new Grid(24, 24);
+  const wingY = up ? 7 : 14;
+
+  g.ellipse(9.5, wingY + (up ? 1.5 : -1.5), 4.6, 2.2, 'H'); // far wing
+
+  g.ellipse(11, 13, 6, 4.6, 'h'); // body
+  g.ellipse(5.5, 12.5, 3, 2.2, 'h'); // tail
+  g.capsule(14.5, 12, 17.5, 9.5, 2.2, 'h'); // neck
+  g.ellipse(17.6, 8.6, 2.8, 2.6, 'h'); // head
+  g.ellipse(15.6, 11, 2, 1.6, 'v'); // neck sheen
+
+  g.ellipse(9.5, wingY, 5, 2.4, 'h'); // near wing
+  g.ellipse(9.5, wingY, 3.2, 1.3, 'H');
+
+  g.capsule(19.8, 8.8, 21.4, 9.2, 1.1, 'k'); // beak
+  g.ellipse(18.6, 7.8, 1, 1.1, 'E');
+  g.set(18.2, 7.4, 'W');
+  g.ellipse(7.5, 16.5, 1.6, 1, 'k'); // tucked feet
+  return finish(g);
+}
+
+/**
+ * A falcon. `stooping` folds the wings back for the dive, which is the pose
+ * that has to read at a glance - it is the difference between a bird you can
+ * ignore and one that is about to hit you.
+ */
+export function falcon(stooping) {
+  const g = new Grid(24, 24);
+
+  if (stooping) {
+    // Wings swept back, body angled down along the line of the dive.
+    g.capsule(6, 6, 12, 12, 2.4, 'G');
+    g.ellipse(13, 13, 5.4, 4, 'f');
+    g.ellipse(7.5, 7.5, 3, 2.2, 'f'); // tail, trailing up behind
+    g.capsule(16.5, 15, 19, 17.5, 2, 'f');
+    g.ellipse(19.4, 18, 2.6, 2.4, 'f');
+    g.ellipse(12, 15, 4, 1.8, 'A'); // barred underside
+    g.capsule(21.4, 18.6, 22.8, 19.2, 1.1, 'k');
+    g.ellipse(20.4, 17, 1, 1.1, 'E');
+    return finish(g);
+  }
+
+  // Perched and watching, wings raised - the wind-up before a stoop.
+  g.capsule(6.5, 5, 11, 10, 2.4, 'G'); // far wing, up
+  g.ellipse(11.5, 13, 6.2, 4.4, 'f'); // body
+  g.ellipse(5.5, 14, 3.2, 2.2, 'f'); // tail
+  g.capsule(15, 11.5, 18, 9, 2.2, 'f'); // neck
+  g.ellipse(18.2, 8.2, 2.9, 2.7, 'f'); // head
+  g.ellipse(11, 15, 4.4, 1.8, 'A'); // barred underside
+  g.capsule(8, 6, 12.5, 11, 2.6, 'f'); // near wing, up
+  g.capsule(20.4, 8.4, 22, 9, 1.2, 'k'); // hooked beak
+  g.set(21.6, 9.6, 'k');
+  g.ellipse(19.2, 7.4, 1.1, 1.2, 'E');
+  g.set(18.8, 7, 'W');
+  return finish(g);
+}
+
 /** A springy pad. `sprung` is the squashed-and-released frame. */
 export function spring(sprung) {
   const g = new Grid(16, 16);

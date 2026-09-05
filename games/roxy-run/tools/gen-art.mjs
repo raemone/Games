@@ -85,6 +85,10 @@ function buildProps() {
   items.push(['walkerB', props.walker(true)]);
   items.push(['flyerA', props.flyer(false)]);
   items.push(['flyerB', props.flyer(true)]);
+  items.push(['pigeonA', props.pigeon(false)]);
+  items.push(['pigeonB', props.pigeon(true)]);
+  items.push(['falconA', props.falcon(false)]);
+  items.push(['falconB', props.falcon(true)]);
 
   const SHEET_WIDTH = 256;
   const PADDING = 1;

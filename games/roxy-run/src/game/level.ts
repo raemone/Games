@@ -16,6 +16,8 @@ export type EntityKind =
   | 'boost'
   | 'walker'
   | 'flyer'
+  | 'pigeon'
+  | 'falcon'
   | 'spike'
   | 'checkpoint'
   | 'goal'
@@ -33,6 +35,10 @@ export const ENTITY_CHARS: Readonly<Record<string, EntityKind>> = {
   '~': 'boost',
   E: 'walker',
   V: 'flyer',
+  // 'p' and 'P' are a keystroke apart, but a slip either way is caught: two
+  // spawns is an error, and none is too.
+  p: 'pigeon',
+  F: 'falcon',
   '^': 'spike',
   C: 'checkpoint',
   G: 'goal',

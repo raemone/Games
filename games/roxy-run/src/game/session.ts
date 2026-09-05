@@ -134,7 +134,7 @@ export class Session {
   }
 
   update(input: PhysicsInput): void {
-    for (const entity of this.entities) updateEntity(entity, this.level.map);
+    for (const entity of this.entities) updateEntity(entity, this.level.map, this.body);
     this.updateLooseBones();
     this.updatePopups();
 

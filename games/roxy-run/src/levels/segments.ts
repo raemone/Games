@@ -334,6 +334,58 @@ export const SEGMENTS = {
     '#########      #########',
   ]),
 
+  /** A flight of pigeons crossing at two heights, with crates underneath. */
+  pigeons: seg([
+    '                        ',
+    '   p           p        ',
+    '                        ',
+    '         p              ',
+    '     o     X   o    X   ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** Falcons perched high, waiting to stoop on whatever passes beneath. */
+  falcons: seg([
+    '     F           F      ',
+    '                        ',
+    '                        ',
+    '        o o o o         ',
+    '   X          E      X  ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** Everything at once: a falcon over a duck, pigeons above, crates between. */
+  aviary: seg([
+    '            F           ',
+    '   p                p   ',
+    '                        ',
+    '      o   X   X   o     ',
+    '   E     X     X     E  ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
+  /** A long open run to build speed back up after a crowded stretch. */
+  meadow: seg([
+    '                        ',
+    '                        ',
+    '      o o o o o o       ',
+    '                        ',
+    '   X                 X  ',
+    FLOOR,
+    FLOOR,
+    FLOOR,
+    FLOOR,
+  ]),
+
   /** Checkpoint. Always on flat ground so it cannot be missed. */
   checkpoint: seg([
     '                        ',

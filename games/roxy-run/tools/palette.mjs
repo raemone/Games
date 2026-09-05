@@ -28,6 +28,14 @@ export const PAL = {
   // reads as a special item rather than as another piece of her.
   j: '#ffd633',
   J: '#e8a41e',
+  // Pigeons: cool slate with a green-purple sheen at the neck.
+  h: '#9aa6b8',
+  H: '#6f7d92',
+  v: '#7fb08a',
+  // Falcons: dark warm brown, barred paler underneath.
+  f: '#7a5233',
+  G: '#573922',
+  A: '#d9bb92',
   // Ducks. White everywhere - they are the same bird in every world.
   q: '#f4f8fc', // duck white
   Q: '#ccd9e6', // duck shading

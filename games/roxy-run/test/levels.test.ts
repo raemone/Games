@@ -3,9 +3,7 @@ import { LEVELS, WORLD_COUNT, levelById, levelsForWorld, nextLevel } from '../sr
 import { parseLevel } from '../src/game/level';
 import { TILE, findFloor } from '../src/game/collision';
 import { GROUND_ROW, SEGMENTS, SEGMENT_HEIGHT, SEGMENT_WIDTH } from '../src/levels/segments';
-
-/** Mirrors FLYER_RANGE in entities.ts - how far a flyer drifts from its spawn. */
-const FLYER_PATROL = 48;
+import { flyingReach, isEnemy, isFlying } from '../src/game/entities';
 
 /** Clear ground a pit needs in front of it, so the jump can be built up to. */
 const RUN_UP = 140;
@@ -99,10 +97,11 @@ describe('hazard placement', () => {
    * you lose the bones and the fall. Flyers must stay over ground they could
    * land on, across their whole patrol rather than only where they spawn.
    */
-  it.each(CASES)('%s keeps every flyer over solid ground', (_id, level) => {
+  it.each(CASES)('%s keeps every flying enemy over solid ground', (_id, level) => {
     const parsed = parseLevel(level);
-    for (const flyer of parsed.entities.filter((e) => e.kind === 'flyer')) {
-      for (const offset of [-FLYER_PATROL, 0, FLYER_PATROL]) {
+    for (const flyer of parsed.entities.filter((e) => isFlying(e.kind))) {
+      const reach = flyingReach(flyer.kind);
+      for (const offset of [-reach, 0, reach]) {
         const ground = findFloor(parsed.map, flyer.x + offset, flyer.y, parsed.pixelHeight);
         expect(ground, `flyer at x=${flyer.x} (offset ${offset}) is over a pit`).not.toBeNull();
       }
@@ -124,14 +123,14 @@ describe('hazard placement', () => {
       x >= 0 && x < parsed.pixelWidth && findFloor(parsed.map, x, groundY, parsed.pixelHeight) === null;
 
     const blockers = parsed.entities.filter(
-      (e) => e.kind === 'crate' || e.kind === 'spike' || e.kind === 'walker' || e.kind === 'flyer',
+      (e) => e.kind === 'crate' || e.kind === 'spike' || isEnemy(e.kind),
     );
     for (let x = TILE; x < parsed.pixelWidth; x += TILE) {
       // The left lip of a pit: solid here, open air one tile on.
       if (isPit(x) || !isPit(x + TILE)) continue;
       for (const blocker of blockers) {
-        // Flyers roam, so the whole patrol has to clear the approach.
-        const reach = blocker.kind === 'flyer' ? FLYER_PATROL : 0;
+        // Flying enemies roam, so the whole patrol has to clear the approach.
+        const reach = isFlying(blocker.kind) ? flyingReach(blocker.kind) : 0;
         const distance = x - (blocker.x - reach);
         expect(
           distance > 0 && distance < RUN_UP,
@@ -159,7 +158,7 @@ describe('level density', () => {
     for (const level of LEVELS) {
       const parsed = parseLevel(level);
       const things = parsed.entities.filter(
-        (e) => e.kind === 'walker' || e.kind === 'flyer' || e.kind === 'crate',
+        (e) => e.kind === 'crate' || isEnemy(e.kind),
       );
       expect(things.length, `${level.id} feels empty`).toBeGreaterThanOrEqual(8);
     }
@@ -168,9 +167,7 @@ describe('level density', () => {
   it('keeps the first level the gentlest of the nine', () => {
     const hazardsIn = (id: string): number => {
       const parsed = parseLevel(LEVELS.find((l) => l.id === id)!);
-      return parsed.entities.filter(
-        (e) => e.kind === 'spike' || e.kind === 'walker' || e.kind === 'flyer',
-      ).length;
+      return parsed.entities.filter((e) => e.kind === 'spike' || isEnemy(e.kind)).length;
     };
     const first = hazardsIn('w1-1');
     for (const level of LEVELS.slice(1)) {

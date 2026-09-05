@@ -28,7 +28,7 @@ export interface Region {
   readonly h: number;
 }
 
-export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'star' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB';
+export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'star' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB' | 'pigeonA' | 'pigeonB' | 'falconA' | 'falconB';
 
 export const PROPS: Readonly<Record<PropName, Region>> = {
   bone: { x: 0, y: 0, w: 20, h: 11 },
@@ -44,4 +44,8 @@ export const PROPS: Readonly<Record<PropName, Region>> = {
   walkerB: { x: 198, y: 0, w: 24, h: 24 },
   flyerA: { x: 223, y: 0, w: 24, h: 24 },
   flyerB: { x: 0, y: 49, w: 24, h: 24 },
+  pigeonA: { x: 25, y: 49, w: 24, h: 24 },
+  pigeonB: { x: 50, y: 49, w: 24, h: 24 },
+  falconA: { x: 75, y: 49, w: 24, h: 24 },
+  falconB: { x: 100, y: 49, w: 24, h: 24 },
 };

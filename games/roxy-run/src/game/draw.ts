@@ -292,11 +292,49 @@ export class WorldRenderer {
           entity.facing === -1,
         );
         break;
+      case 'pigeon':
+        // Slower wingbeat than the ducks, to match its steadier flight.
+        this.sprites.drawPropCentred(
+          ctx,
+          Math.floor(entity.t / 11) % 2 === 0 ? 'pigeonA' : 'pigeonB',
+          x,
+          y,
+          entity.facing === -1,
+        );
+        break;
+      case 'falcon':
+        this.drawFalcon(ctx, entity, x, y);
+        break;
       case 'platformH':
       case 'platformV':
         this.drawPlatform(ctx, x, y);
         break;
     }
+  }
+
+  /**
+   * A falcon shows its intent: it switches to the swept-back stoop pose the
+   * moment the wind-up starts, and flashes through it. That telegraph is the
+   * only warning the player gets, so it has to be unmissable.
+   */
+  private drawFalcon(
+    ctx: CanvasRenderingContext2D,
+    entity: Entity,
+    x: number,
+    y: number,
+  ): void {
+    const committed = entity.diving || entity.windup > 0;
+    if (entity.windup > 0 && Math.floor(entity.windup / 4) % 2 === 0) {
+      ctx.globalAlpha = 0.65;
+    }
+    this.sprites.drawPropCentred(
+      ctx,
+      committed ? 'falconB' : 'falconA',
+      x,
+      y,
+      entity.facing === -1,
+    );
+    ctx.globalAlpha = 1;
   }
 
   private drawBoostPad(ctx: CanvasRenderingContext2D, entity: Entity, x: number, y: number): void {
