@@ -118,6 +118,21 @@ describe('finishing a level', () => {
     expect(bonus.total).toBe(bonus.timeBonus + bonus.boneBonus);
   });
 
+  it('pays more the faster the level is finished', () => {
+    // The point of the clock: two identical runs, one twice as quick, and the
+    // quick one is worth the difference in seconds at twenty points each.
+    const quick = createRun();
+    quick.elapsedMs = 60_000;
+    const slow = createRun();
+    slow.elapsedMs = 180_000;
+
+    const quickBonus = goalBonus(quick, 420_000).total;
+    const slowBonus = goalBonus(slow, 420_000).total;
+
+    expect(quickBonus).toBeGreaterThan(slowBonus);
+    expect(quickBonus - slowBonus).toBe(120 * SCORE.timeBonusPerSecond);
+  });
+
   it('pays no time bonus when the clock ran out, rather than going negative', () => {
     const run = createRun();
     run.elapsedMs = 200_000;

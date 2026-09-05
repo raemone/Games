@@ -9,7 +9,7 @@
 //     first loaded, which is the classic way a PWA strands its users.
 //   - Everything else is cache-first, because a fingerprinted URL's contents
 //     can never change.
-const CACHE = 'roxy-run-v2';
+const CACHE = 'roxy-run-v3';
 
 self.addEventListener('install', (event) => {
   // Take over as soon as the new worker is ready rather than waiting for every
