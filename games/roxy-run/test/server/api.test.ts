@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as health } from '../../api/health';
+import { GET as overall } from '../../api/overall';
 import { GET, OPTIONS, POST } from '../../api/leaderboard';
 import { resetBackend } from '../../server/context';
 
@@ -142,6 +143,55 @@ describe('GET /api/leaderboard', () => {
 
     const mine = await GET(get(`level=w1-1&player=${'1'.repeat(16)}`));
     expect(mine.headers.get('cache-control')).toBe('no-store');
+  });
+});
+
+describe('GET /api/overall', () => {
+  const ask = (query = '') =>
+    new Request(`https://roxy.example/api/overall${query}`, { headers: { origin: ORIGIN } });
+
+  it('adds every level together and ranks the result', async () => {
+    await POST(post(run({ playerId: '1'.repeat(16), initials: 'AAA', levelId: 'w1-1', score: 100 })));
+    await POST(post(run({ playerId: '1'.repeat(16), initials: 'AAA', levelId: 'w1-2', score: 100 })));
+    await POST(post(run({ playerId: '2'.repeat(16), initials: 'BBB', levelId: 'w1-1', score: 150 })));
+
+    const parsed = await body(await overall(ask()));
+    expect(parsed.entries).toEqual([
+      { rank: 1, initials: 'AAA', score: 200, levels: 2, you: false },
+      { rank: 2, initials: 'BBB', score: 150, levels: 1, you: false },
+    ]);
+    expect(parsed.players).toBe(2);
+  });
+
+  it('shows five by default, which is what fits on the title screen', async () => {
+    for (let i = 0; i < 7; i++) {
+      await POST(post(run({ playerId: String(i).repeat(16), score: 100 + i })));
+    }
+
+    expect((await body(await overall(ask()))).entries).toHaveLength(5);
+    expect((await body(await overall(ask('?limit=2')))).entries).toHaveLength(2);
+  });
+
+  it('marks the asking player and gives their standing', async () => {
+    await POST(post(run({ playerId: '1'.repeat(16), initials: 'AAA', score: 100 })));
+    await POST(post(run({ playerId: '2'.repeat(16), initials: 'BBB', score: 900 })));
+
+    const parsed = await body(await overall(ask(`?player=${'1'.repeat(16)}`)));
+    expect(parsed.entries[1]).toMatchObject({ initials: 'AAA', you: true });
+    expect(parsed.you).toMatchObject({ rank: 2, initials: 'AAA', score: 100, levels: 1 });
+  });
+
+  it('is an empty board, not an error, before anyone has played', async () => {
+    expect(await body(await overall(ask()))).toEqual({ entries: [], players: 0, you: null });
+  });
+
+  it('caches the anonymous board and never a personalised one', async () => {
+    expect((await overall(ask())).headers.get('cache-control')).toContain('s-maxage');
+    expect((await overall(ask(`?player=${'1'.repeat(16)}`))).headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('lets the game read it', async () => {
+    expect((await overall(ask())).headers.get('access-control-allow-origin')).toBe(ORIGIN);
   });
 });
 

@@ -150,6 +150,54 @@ function causeOfMemory(restVariables: readonly string[], storageVariables: reado
 }
 
 /**
+ * Every level's board added together: who is ahead overall.
+ *
+ * The title screen shows this rather than one level's table, because a single
+ * level on the front of the game would be an arbitrary choice, and "who is
+ * winning" is the question anyone glancing at a leaderboard is asking.
+ */
+export async function overallGet(request: Request): Promise<Response> {
+  const origin = request.headers.get('origin');
+  const url = new URL(request.url);
+
+  const { store } = backend();
+  if (!(await store.allow(`read:${clientIp(request)}`, READ_LIMIT.max, READ_LIMIT.windowSeconds))) {
+    return error('too many requests', 429, origin);
+  }
+
+  const playerId = url.searchParams.get('player');
+  const board = await store.overall(
+    LEVELS.map((level) => level.id),
+    playerId,
+    parseLimit(url.searchParams.get('limit'), 5),
+  );
+
+  return json(
+    {
+      players: board.players,
+      entries: board.entries.map((entry, index) => ({
+        rank: index + 1,
+        initials: entry.initials,
+        score: entry.score,
+        levels: entry.levels,
+        you: playerId !== null && entry.playerId === playerId,
+      })),
+      you: board.you
+        ? {
+            rank: board.you.rank,
+            initials: board.you.entry.initials,
+            score: board.you.entry.score,
+            levels: board.you.entry.levels,
+          }
+        : null,
+    },
+    // Same rule as the per-level board: a response carrying one player's
+    // standing must never be handed to the next child who asks.
+    { origin, ...(playerId ? {} : { cacheSeconds: BOARD_CACHE_SECONDS }) },
+  );
+}
+
+/**
  * Is the board actually storing anything?
  *
  * Worth its own route: with no database attached the API answers every request

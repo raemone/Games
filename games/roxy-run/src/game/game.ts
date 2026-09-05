@@ -7,13 +7,21 @@ import { Input, type InputState } from '../engine/input';
 import { Renderer } from '../engine/renderer';
 import * as storage from '../engine/storage';
 import type { SaveData } from '../engine/storage';
-import { type Board, type Standing, boardEnabled, fetchBoard, postRun } from '../engine/leaderboard';
+import {
+  type Board,
+  type OverallBoard,
+  type Standing,
+  boardEnabled,
+  fetchBoard,
+  fetchOverall,
+  postRun,
+} from '../engine/leaderboard';
 import { LEVELS, WORLD_COUNT, nextLevel } from '../levels';
 import { type BoardStatus, drawBoard, drawInitials, stepCharacter } from './board';
 import { drawHud, drawOverlay, drawTouchControls } from './hud';
 import { type LevelDef, parseLevel } from './level';
 import { createRun, formatScore, formatTime, type Run } from './scoring';
-import { drawLevelSelect, drawTitle, hitHotspot, type Hotspot } from './screens';
+import { type TitleBoard, drawLevelSelect, drawTitle, hitHotspot, type Hotspot } from './screens';
 import { Session } from './session';
 import { Sprites } from './sprites';
 import { CHASE_TUNE, themeForWorld } from './theme';
@@ -84,6 +92,9 @@ export class Game {
   private pending: PendingPost | null = null;
   /** Where the last posted run landed, shown on the results panel. */
   private standing: Standing | null = null;
+  /** The overall board shown on the title screen. */
+  private overall: OverallBoard | null = null;
+  private overallStatus: TitleBoard['status'] = 'off';
   private initialsChars: string[] = ['A', 'A', 'A'];
   private initialsSlot = 0;
   private afterInitials: AfterInitials = 'post';
@@ -98,6 +109,9 @@ export class Game {
     this.audio.setMuted(this.save.settings.muted);
     this.input.mirrored = this.save.settings.mirrorTouch;
     this.input.layout(renderer.layout);
+    // The game opens on the title screen without going through go(), so the
+    // first visit to it has to ask for the board here.
+    this.loadOverall();
   }
 
   resize(): void {
@@ -183,6 +197,10 @@ export class Game {
         break;
       case 'levels':
         this.go('select');
+        break;
+      case 'title':
+        this.audio.stopTune();
+        this.go('title');
         break;
       case 'retry':
         this.retryLevel();
@@ -568,7 +586,25 @@ export class Game {
     this.playMusicFor(def);
   }
 
+  /**
+   * Fetch the overall board for the title screen.
+   *
+   * Once per visit to the title screen rather than on a timer: the board
+   * changes when somebody finishes a level, and coming back to the front of
+   * the game is exactly when that has just happened.
+   */
+  private loadOverall(): void {
+    if (!boardEnabled()) return;
+    this.overallStatus = 'loading';
+    void fetchOverall(this.save.playerId).then((board) => {
+      if (this.screen !== 'title') return;
+      this.overall = board;
+      this.overallStatus = board ? 'ready' : 'error';
+    });
+  }
+
   private go(screen: Screen): void {
+    if (screen === 'title' && this.screen !== 'title') this.loadOverall();
     this.screen = screen;
     // Long enough that the tap which opened a screen cannot also dismiss it.
     this.inputCooldown = Math.max(this.inputCooldown, 18);
@@ -588,7 +624,10 @@ export class Game {
 
     switch (this.screen) {
       case 'title':
-        drawTitle(screenCtx, layout, this.tick);
+        drawTitle(screenCtx, layout, this.tick, {
+          status: this.overallStatus,
+          board: this.overall,
+        });
         break;
       case 'select': {
         this.hotspots = drawLevelSelect(screenCtx, layout, this.save, this.levelIndex);
@@ -597,6 +636,19 @@ export class Game {
         const margin = uiScale(layout) * 0.8;
         const bottom = layout.height - margin - layout.insets.bottom;
         resetButton = drawTextButton(screenCtx, layout, margin, bottom, 'reset', 'Erase scores', true);
+        // Top left, where a back control belongs, and clear of the mute and
+        // pause icons in the opposite corner.
+        extraButtons.push(
+          drawTextButton(
+            screenCtx,
+            layout,
+            margin,
+            layout.insets.top + margin + uiScale(layout),
+            'title',
+            '< Home',
+            true,
+          ),
+        );
         if (boardEnabled()) {
           extraButtons.push(
             drawTextButton(

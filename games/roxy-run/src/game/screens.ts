@@ -5,9 +5,11 @@
  */
 import type { Layout } from '../engine/renderer';
 import { LEVELS, WORLD_COUNT } from '../levels';
+import type { OverallBoard } from '../engine/leaderboard';
 import type { SaveData } from '../engine/storage';
 import { formatScore, formatTime } from './scoring';
 import { THEMES } from './theme';
+import { roundRect } from './ui';
 
 export interface Hotspot {
   readonly x: number;
@@ -26,7 +28,18 @@ function scaleOf(layout: Layout): number {
   return Math.max(12, Math.min(layout.height * 0.045, 26));
 }
 
-export function drawTitle(ctx: CanvasRenderingContext2D, layout: Layout, tick: number): void {
+/** What the title screen knows about the world board, if anything. */
+export interface TitleBoard {
+  readonly status: 'off' | 'loading' | 'ready' | 'error';
+  readonly board: OverallBoard | null;
+}
+
+export function drawTitle(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  tick: number,
+  world: TitleBoard = { status: 'off', board: null },
+): void {
   const size = scaleOf(layout);
   const cx = layout.width / 2;
 
@@ -48,18 +61,108 @@ export function drawTitle(ctx: CanvasRenderingContext2D, layout: Layout, tick: n
   ctx.fillStyle = DIM;
   ctx.fillText('A very good dog, going very fast', cx, layout.height * 0.34 + size * 2.4);
 
+  if (world.status !== 'off') drawTitleBoard(ctx, layout, size, world);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.globalAlpha = 0.55 + Math.sin(tick / 14) * 0.35;
   ctx.font = `700 ${size * 1.2}px system-ui, sans-serif`;
   ctx.fillStyle = INK;
-  ctx.fillText('TAP TO START', cx, layout.height * 0.66);
+  ctx.fillText('TAP TO START', cx, layout.height * 0.84);
   ctx.globalAlpha = 1;
 
   ctx.font = `400 ${size * 0.8}px system-ui, sans-serif`;
   ctx.fillStyle = DIM;
-  ctx.fillText('Arrows to run  ·  Space to jump  ·  Down to roll', cx, layout.height * 0.82);
+  ctx.fillText('Arrows to run  ·  Space to jump  ·  Down to roll', cx, layout.height * 0.93);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
+}
+
+/**
+ * The overall board, small, under the title.
+ *
+ * Every level added together rather than one level's table: which level would
+ * you put on the front of the game? "Who is winning" is the question anyone
+ * glancing at a leaderboard is asking, and it is the one a total answers.
+ *
+ * Deliberately not tappable. The whole screen means "start", and a child who
+ * taps the game's name expecting to play should not land in a menu.
+ */
+function drawTitleBoard(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  size: number,
+  world: TitleBoard,
+): void {
+  const rowHeight = size * 1.25;
+  // Sits between the subtitle and "TAP TO START", both of which move with the
+  // screen - so the panel is placed from them rather than from a fraction of
+  // the height that only happens to work on a laptop.
+  const y = layout.height * 0.34 + size * 3.6;
+  const floor = layout.height * 0.84 - size * 1.6;
+  // Header plus rows, with the space above the first row and below the last
+  // matched - the panel reads as lopsided otherwise.
+  const chrome = size * 1.75;
+
+  // A phone held sideways has room for two or three rows, a laptop for five.
+  // Showing more than fits would run the board through the words underneath.
+  const fits = Math.floor((floor - y - chrome) / rowHeight);
+  const rows = world.board?.entries ?? [];
+  const shown = rows.slice(0, Math.max(1, Math.min(5, fits)));
+  if (fits < 1) return;
+
+  const width = Math.min(layout.width - size * 4, size * 16);
+  const height = chrome + Math.max(shown.length, 1) * rowHeight;
+  const x = (layout.width - width) / 2;
+
+  roundRect(ctx, x, y, width, height, size * 0.5);
+  ctx.fillStyle = 'rgba(12, 8, 26, 0.45)';
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255, 216, 138, 0.22)';
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${size * 0.7}px system-ui, sans-serif`;
+  ctx.fillStyle = ACCENT;
+  ctx.fillText('WORLD BOARD', layout.width / 2, y + size * 0.75);
+
+  if (shown.length === 0) {
+    ctx.font = `400 ${size * 0.72}px system-ui, sans-serif`;
+    ctx.fillStyle = DIM;
+    ctx.fillText(emptyLine(world), layout.width / 2, y + size * 1.45 + rowHeight / 2);
+    return;
+  }
+
+  const left = x + size;
+  const right = x + width - size;
+
+  shown.forEach((row, index) => {
+    const rowY = y + size * 1.45 + rowHeight * index + rowHeight / 2;
+    const mine = row.you;
+
+    ctx.font = `700 ${size * 0.72}px system-ui, sans-serif`;
+    ctx.fillStyle = mine ? ACCENT : index === 0 ? ACCENT : DIM;
+    ctx.textAlign = 'left';
+    ctx.fillText(`${row.rank}`, left, rowY);
+
+    ctx.fillStyle = mine ? ACCENT : INK;
+    ctx.fillText(row.initials, left + size * 1.4, rowY);
+
+    ctx.textAlign = 'right';
+    ctx.font = `600 ${size * 0.72}px system-ui, sans-serif`;
+    ctx.fillText(formatScore(row.score), right, rowY);
+  });
+
+  ctx.textAlign = 'center';
+}
+
+function emptyLine(world: TitleBoard): string {
+  if (world.status === 'loading') return 'Asking the world...';
+  if (world.status === 'error') return 'Could not reach the board.';
+  return 'Nobody has posted a score yet.';
 }
 
 /**

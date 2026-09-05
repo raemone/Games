@@ -4,7 +4,7 @@
  * a bad answer from the network becomes null, not an exception.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { boardEnabled, fetchBoard, postRun, resolveBase } from '../src/engine/leaderboard';
+import { boardEnabled, fetchBoard, fetchOverall, postRun, resolveBase } from '../src/engine/leaderboard';
 
 const PLAYER = '0123456789abcdef';
 
@@ -139,6 +139,52 @@ describe('fetchBoard', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(await pending).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe('fetchOverall', () => {
+  it('asks for five rows and this player', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ players: 0, entries: [] }));
+    await fetchOverall(PLAYER);
+
+    const url = new URL(callArgs(0).url);
+    expect(url.pathname).toBe('/api/overall');
+    expect(url.searchParams.get('limit')).toBe('5');
+    expect(url.searchParams.get('player')).toBe(PLAYER);
+  });
+
+  it('reads the board, including how many levels each total came from', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        players: 4,
+        entries: [
+          { rank: 1, initials: 'RAE', score: 22000, levels: 9, you: false },
+          { rank: 2, initials: 'ROX', score: 8000, levels: 3, you: true },
+        ],
+        you: { rank: 2, initials: 'ROX', score: 8000, levels: 3 },
+      }),
+    );
+
+    const board = await fetchOverall(PLAYER);
+    expect(board?.players).toBe(4);
+    expect(board?.entries[0]).toEqual({ rank: 1, initials: 'RAE', score: 22000, levels: 9, you: false });
+    expect(board?.you).toMatchObject({ rank: 2, levels: 3 });
+  });
+
+  it('fills in what a malformed row leaves out', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ entries: [{}] }));
+    expect((await fetchOverall(PLAYER))?.entries[0]).toEqual({
+      rank: 1,
+      initials: '???',
+      score: 0,
+      levels: 0,
+      you: false,
+    });
+  });
+
+  it('is null when the board cannot be reached', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    expect(await fetchOverall(PLAYER)).toBeNull();
   });
 });
 

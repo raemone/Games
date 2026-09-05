@@ -61,6 +61,22 @@ export interface Standing {
   readonly timeMs: number;
 }
 
+/** One player's line on the overall board: every level added together. */
+export interface OverallRow {
+  readonly rank: number;
+  readonly initials: string;
+  readonly score: number;
+  /** How many levels that total came from. */
+  readonly levels: number;
+  readonly you: boolean;
+}
+
+export interface OverallBoard {
+  readonly players: number;
+  readonly entries: readonly OverallRow[];
+  readonly you: (Standing & { readonly levels: number }) | null;
+}
+
 export interface Board {
   readonly levelId: string;
   /** How many players have posted on this level, not how many rows came back. */
@@ -152,6 +168,45 @@ export async function fetchBoard(levelId: string, playerId: string, limit = 10):
   const query = new URLSearchParams({ level: levelId, limit: String(limit) });
   if (playerId) query.set('player', playerId);
   return toBoard(levelId, await request(`/api/leaderboard?${query.toString()}`));
+}
+
+/**
+ * The overall board - every level added together - or null when unreachable.
+ *
+ * Five rows by default: what fits on the title screen without pushing the
+ * game's own name off it.
+ */
+export async function fetchOverall(playerId: string, limit = 5): Promise<OverallBoard | null> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (playerId) query.set('player', playerId);
+
+  const raw = await request(`/api/overall?${query.toString()}`);
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const list = Array.isArray(record.entries) ? record.entries : [];
+
+  const entries = list.map((item, index) => {
+    const row = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
+    return {
+      rank: num(row.rank, index + 1),
+      initials: str(row.initials),
+      score: num(row.score),
+      levels: num(row.levels),
+      you: row.you === true,
+    };
+  });
+
+  const standing = toStanding(record.you);
+  const yours =
+    typeof record.you === 'object' && record.you !== null
+      ? (record.you as Record<string, unknown>)
+      : {};
+
+  return {
+    players: num(record.players, entries.length),
+    entries,
+    you: standing ? { ...standing, levels: num(yours.levels) } : null,
+  };
 }
 
 /** Post a run and return where it landed, or null if it did not get through. */

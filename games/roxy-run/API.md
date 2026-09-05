@@ -27,6 +27,7 @@ game's side, exactly like a rejected score.
 | | |
 |---|---|
 | `GET /api/leaderboard?level=w1-1&limit=10&player=<id>` | The top runs on a level. `player` adds that device's own standing, even when it is off the end of the page. |
+| `GET /api/overall?limit=5&player=<id>` | Every level added together: who is ahead overall. What the title screen shows. |
 | `POST /api/leaderboard` | Post a run. Answers with where it landed. |
 | `GET /api/health` | Whether a database is actually attached. |
 
@@ -38,6 +39,15 @@ name and no email — this is the whole of what the board knows about anyone.
 Boards are per level. A single table across nine levels would reward grinding
 the most generous one, and the question a child actually has is who is fastest
 on the level they are stuck on.
+
+The exception is `/api/overall`, which adds every level's best scores together
+and is what the title screen shows - because putting one level's table on the
+front of the game would be an arbitrary choice, and "who is winning" is the
+question anyone glancing at a leaderboard is asking. It reads all nine boards
+in one round trip and sums them here rather than in the database: Redis cannot
+add sorted sets with partially overlapping members without a temporary key per
+request, and at the size this board will ever be, the arithmetic is nothing
+next to the round trip that would save.
 
 ## Running it locally
 
