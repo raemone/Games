@@ -68,9 +68,10 @@ npm run build    # type-check and production build
 npm run art      # regenerate the sprite PNGs from tools/
 ```
 
-The world board is off unless `VITE_LEADERBOARD_URL` points at one. To develop
-against a local board, run `npm run serve` in `server/` and start the game with
-`VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev`.
+The world board points at the deployed API by default. To develop against a
+local one, run `npm run serve` in `server/` and start the game with
+`VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev`; use
+`VITE_LEADERBOARD_URL=off` to build with no board at all.
 
 Levels are ASCII art. `src/levels/segments.ts` holds reusable 24x20 tile chunks
 and `src/levels/index.ts` lists which chunks each level is made of, so a new
@@ -101,11 +102,12 @@ something concrete rather than a settings toggle nobody reads — and remembers
 the answer. Answer no and the game never mentions it again; both the answer and
 the initials can be changed from the board screen afterwards.
 
-Everything about it is optional at every level. The board URL is a build-time
-variable, so a build without it has no board at all and no code path that tries;
-a request that fails, times out or comes back malformed becomes "could not reach
-the board" rather than an error, and the game never waits for the network to
-show a result. The results panel appears the moment a level ends, and the rank
+Everything about it degrades rather than breaks. A request that fails, times out
+or comes back malformed becomes "could not reach the board" rather than an
+error, and the game never waits for the network to show a result. The board it
+talks to is the default, so the feature works out of the box;
+`VITE_LEADERBOARD_URL` points a build at a different one, and `off` builds a
+game with no board at all and no code path that tries. The results panel appears the moment a level ends, and the rank
 arrives a second later if it arrives.
 
 What stops someone posting a score they never earned is worth being straight

@@ -43,8 +43,9 @@ jobs:
         working-directory: games/roxy-run
         run: npm run build
         env:
-          # The world board is off unless this repository variable is set, so a
-          # fork builds a perfectly good offline game without any of this.
+          # An override, not a switch: unset, this arrives as an empty string
+          # and the build falls back to the family's own board. Set it to "off"
+          # for a fork that wants no backend at all.
           VITE_LEADERBOARD_URL: ${{ vars.LEADERBOARD_URL }}
 
       - name: Install (poop-patrol)

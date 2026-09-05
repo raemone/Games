@@ -12,8 +12,35 @@
  * still being a leaderboard.
  */
 
-/** Where the API lives. Empty at build time means the board is simply off. */
-const BASE = (import.meta.env.VITE_LEADERBOARD_URL ?? '').replace(/\/$/, '');
+/**
+ * Where the API lives.
+ *
+ * The family's own board is the default rather than something that has to be
+ * configured, because it is a public URL that ends up in the bundle either
+ * way, and a feature that only works once someone remembers to set a build
+ * variable is a feature nobody has.
+ */
+const DEFAULT_BOARD = 'https://roxy-run.vercel.app';
+
+/** The value that switches the board off, for a fork that wants no backend. */
+const OFF = 'off';
+
+/**
+ * Work out the API's origin from whatever the build was given.
+ *
+ * A pure function of the one input so the rules are testable: CI passes the
+ * repository variable straight through, and an unset variable arrives as an
+ * empty string rather than as undefined - which is exactly the case that must
+ * not read as "turn the board off".
+ */
+export function resolveBase(configured: string | undefined): string {
+  const value = (configured ?? '').trim();
+  if (value === '') return DEFAULT_BOARD;
+  if (value.toLowerCase() === OFF) return '';
+  return value.replace(/\/$/, '');
+}
+
+const BASE = resolveBase(import.meta.env.VITE_LEADERBOARD_URL);
 
 /** Long enough for a sleepy function to wake, short enough not to hang a menu. */
 const TIMEOUT_MS = 6000;

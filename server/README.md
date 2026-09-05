@@ -64,10 +64,10 @@ VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev
 3. Set `ALLOWED_ORIGINS` if the game is served from anywhere other than
    `https://raemone.github.io` (comma-separated; localhost dev ports are always
    allowed).
-4. In the GitHub repository, set the `LEADERBOARD_URL` **variable** — not a
-   secret, it ends up in the client bundle — to the deployment's origin, e.g.
-   `https://roxy-run.vercel.app`. Without it the game builds with the world
-   board switched off entirely.
+4. Nothing, if the deployment is `https://roxy-run.vercel.app` — that is the
+   game's default. For a different origin, set the `LEADERBOARD_URL` repository
+   **variable** (not a secret; it ends up in the client bundle) to it, or
+   `off` to build a game with no board at all.
 
 | Variable | |
 |---|---|
