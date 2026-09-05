@@ -1,21 +1,26 @@
-# Leaderboard server
+# The world board API
 
-The world board behind Roxy Run: one Vercel project, two functions, no runtime
-dependencies.
+The leaderboard behind Roxy Run: two functions and a Redis sorted set, with no
+runtime dependencies.
 
 ```
-server/
-  api/          the functions themselves - one file per route
-  src/          rules and storage, which is where the actual thinking is
-  tools/        a local runner, so the API works without the Vercel CLI
-  public/       a one-page holding page at the project's root URL
+games/roxy-run/
+  api/            the functions themselves - one file per route
+  server/         rules and storage, which is where the actual thinking is
+  test/server/    their tests
+  tools/serve.mjs a local runner, so the API works without the Vercel CLI
 ```
 
-The game is on GitHub Pages and this is on Vercel, so every request a player
-makes is cross-origin. That is the reason CORS gets as much attention as it
-does in `src/http.ts`, and the reason `api/leaderboard.ts` has a test asserting
-the headers on a *successful* POST: a reply the browser cannot read looks, from
-the game's side, exactly like a rejected score.
+It lives inside the game's directory rather than beside it because that is the
+directory Vercel deploys: one project serves both, so there is one deployment
+to keep alive instead of two, and the server validates against the game's real
+level table (`src/levels`) instead of a copy that could drift from it.
+
+Note what this does *not* buy: the family plays on GitHub Pages, so a player's
+request is still cross-origin. That is why CORS gets as much attention as it
+does in `server/http.ts`, and why `api/leaderboard.ts` has a test asserting the
+headers on a *successful* POST - a reply the browser cannot read looks, from the
+game's side, exactly like a rejected score.
 
 ## The API
 
@@ -37,10 +42,10 @@ on the level they are stuck on.
 ## Running it locally
 
 ```bash
-cd server
+cd games/roxy-run
 npm install
-npm test         # unit tests and the routes, end to end
-npm run build    # type-check
+npm test         # the game's tests and the API's, in one suite
+npm run build    # type-check and build
 npm run serve    # http://localhost:3001, no Vercel CLI needed
 ```
 
@@ -50,17 +55,16 @@ it uses the in-memory store, so the board fills as you play and empties when you
 stop the server. To see the game talking to it:
 
 ```bash
-cd games/roxy-run
 VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev
 ```
 
 ## Deploying it
 
-1. Create a Vercel project from this repository and set its **Root Directory**
-   to `server`. Everything outside that directory is then irrelevant to the
-   deployment, which is why the server keeps its own copy of the level table.
-2. Add a Redis database — Vercel KV, or Upstash from the marketplace. Either one
-   sets the environment variables below on the project for you.
+1. A Vercel project on this repository with its **Root Directory** set to
+   `games/roxy-run`. This is what Vercel's monorepo detection creates on its
+   own, and it is the project that serves the game, so `api/` deploys with it.
+2. A Redis database on that project — Vercel KV, or Upstash from the
+   marketplace. Either one sets the environment variables below for you.
 3. Set `ALLOWED_ORIGINS` if the game is served from anywhere other than
    `https://raemone.github.io` (comma-separated; localhost dev ports are always
    allowed).

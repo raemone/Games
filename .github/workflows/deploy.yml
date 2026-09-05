@@ -29,12 +29,13 @@ jobs:
           cache-dependency-path: |
             games/roxy-run/package-lock.json
             games/poop-patrol/package-lock.json
-            server/package-lock.json
 
       - name: Install (roxy-run)
         working-directory: games/roxy-run
         run: npm ci
 
+      # Covers the leaderboard API too: it lives in this package now, so the
+      # same command runs the game's tests and the API's.
       - name: Test (roxy-run)
         working-directory: games/roxy-run
         run: npm test
@@ -58,21 +59,6 @@ jobs:
 
       - name: Build (poop-patrol)
         working-directory: games/poop-patrol
-        run: npm run build
-
-      # The leaderboard API deploys from Vercel, not from here, but its tests
-      # guard the level table the game shares with it - so a level added to the
-      # game and not to the server fails this build rather than production.
-      - name: Install (server)
-        working-directory: server
-        run: npm ci
-
-      - name: Test (server)
-        working-directory: server
-        run: npm test
-
-      - name: Type-check (server)
-        working-directory: server
         run: npm run build
 
       - name: Assemble site

@@ -7,6 +7,7 @@
  * cross-origin - get this wrong and the board is simply invisible, with the
  * failure buried in a browser console nobody has open.
  */
+import { type Env, currentEnv } from './env';
 
 /** Origins allowed to read the board, beyond anything ALLOWED_ORIGINS adds. */
 const DEFAULT_ORIGINS = [
@@ -17,7 +18,7 @@ const DEFAULT_ORIGINS = [
   'http://127.0.0.1:4173',
 ];
 
-export function allowedOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+export function allowedOrigins(env: Env = currentEnv()): string[] {
   const extra = (env.ALLOWED_ORIGINS ?? '')
     .split(',')
     .map((origin) => origin.trim())
@@ -33,7 +34,7 @@ export function allowedOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
  * Origin - curl, a health check, a mobile client - are not the browser's
  * business and are left alone.
  */
-export function corsHeaders(origin: string | null, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+export function corsHeaders(origin: string | null, env: Env = currentEnv()): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',

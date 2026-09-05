@@ -7,6 +7,8 @@
  * against a package that would have to be vendored, updated and trusted.
  */
 
+import { type Env, currentEnv } from './env';
+
 export type Command = readonly (string | number)[];
 
 export interface RedisConfig {
@@ -22,11 +24,37 @@ export interface RedisConfig {
  * attached. Returns null when neither is present, which is the signal to fall
  * back to the in-memory store.
  */
-export function configFromEnv(env: NodeJS.ProcessEnv = process.env): RedisConfig | null {
+export function configFromEnv(env: Env = currentEnv()): RedisConfig | null {
   const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
   const token = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
   return { url: url.replace(/\/$/, ''), token };
+}
+
+/**
+ * The variables a REST-capable Redis sets. Vercel KV uses the first pair, the
+ * Upstash marketplace integration the second.
+ *
+ * Named here so `/api/health` can report which of them it can actually see.
+ * An integration that sets only a `redis://` connection string - the TCP
+ * protocol rather than the REST one - leaves every name below empty, and the
+ * API falls back to memory without anything obviously being wrong. Being able
+ * to see which names arrived is the difference between a two-minute fix and an
+ * afternoon.
+ */
+export const REST_VARIABLES = [
+  'KV_REST_API_URL',
+  'KV_REST_API_TOKEN',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+] as const;
+
+/**
+ * Which of those names are set. Names only - never the values, which are
+ * credentials and have no business in an unauthenticated health response.
+ */
+export function restVariablesPresent(env: Env = currentEnv()): string[] {
+  return REST_VARIABLES.filter((name) => (env[name] ?? '') !== '');
 }
 
 async function post(config: RedisConfig, path: string, body: unknown): Promise<unknown> {

@@ -1,6 +1,11 @@
 /**
  * Everything arriving from a browser, checked before it can reach the database.
  *
+ * The level table it checks against is the game's own - the same module the
+ * game builds its levels from - so a level added or a clock retuned is known
+ * to the server the moment it is known to the game. This is the one real perk
+ * of the API living inside the game's package rather than beside it.
+ *
  * Be honest about what this is: plausibility checking, not proof. The game runs
  * entirely on the player's machine, so a determined adult with the network tab
  * open can post a run they never played. What these rules buy is that the board
@@ -8,7 +13,7 @@
  * what actually ruins a leaderboard a family looks at. See the README for what
  * proving a run would take.
  */
-import { levelById } from './levels';
+import { levelById } from '../src/levels';
 
 /**
  * Well above anything a real run pays.

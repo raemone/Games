@@ -5,6 +5,7 @@
  * between requests: building the client per request would be wasteful, and
  * building the memory store per request would empty the board every time.
  */
+import { type Env, currentEnv } from './env';
 import { configFromEnv } from './redis';
 import { MemoryStore, RedisStore, type Store } from './store';
 
@@ -16,7 +17,7 @@ export interface Backend {
 
 let cached: Backend | null = null;
 
-export function backend(env: NodeJS.ProcessEnv = process.env): Backend {
+export function backend(env: Env = currentEnv()): Backend {
   if (cached) return cached;
   const config = configFromEnv(env);
   cached = config

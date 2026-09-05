@@ -9,10 +9,15 @@
  */
 export async function resolve(specifier, context, next) {
   if (specifier.startsWith('.') && !/\.[a-z]+$/i.test(specifier)) {
-    try {
-      return await next(`${specifier}.ts`, context);
-    } catch {
-      // Not a TypeScript module after all; fall through to the default.
+    // Both the shapes a bundler would resolve: the module itself, and a
+    // directory's index. The game imports `../src/levels`, which is the
+    // second, so missing it breaks the API rather than just the dev server.
+    for (const candidate of [`${specifier}.ts`, `${specifier}/index.ts`]) {
+      try {
+        return await next(candidate, context);
+      } catch {
+        // Try the next shape, then fall through to Node's own resolution.
+      }
     }
   }
   return next(specifier, context);

@@ -6,9 +6,9 @@
  * beyond an empty environment.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET as health } from '../api/health';
-import { GET, OPTIONS, POST } from '../api/leaderboard';
-import { resetBackend } from '../src/context';
+import { GET as health } from '../../api/health';
+import { GET, OPTIONS, POST } from '../../api/leaderboard';
+import { resetBackend } from '../../server/context';
 
 const API = 'https://roxy.example/api/leaderboard';
 const ORIGIN = 'https://raemone.github.io';
@@ -185,7 +185,22 @@ describe('CORS', () => {
 describe('GET /api/health', () => {
   it('admits when there is no database behind it', async () => {
     const parsed = await body(await health(new Request('https://roxy.example/api/health')));
-    expect(parsed).toMatchObject({ ok: true, storage: 'memory' });
+    expect(parsed).toMatchObject({ ok: true, storage: 'memory', restVariablesSeen: [] });
     expect(parsed.note).toContain('lost');
+    // The likeliest cause of an attached-but-unusable store, named on the spot.
+    expect(parsed.note).toContain('redis://');
+  });
+
+  it('names the variables it can see, and never their values', async () => {
+    vi.stubEnv('KV_REST_API_URL', 'https://redis.example');
+    resetBackend();
+
+    const parsed = await body(await health(new Request('https://roxy.example/api/health')));
+    expect(parsed.restVariablesSeen).toEqual(['KV_REST_API_URL']);
+    expect(JSON.stringify(parsed)).not.toContain('redis.example');
+    // A URL with no token is not a working store, and says so rather than
+    // reporting a database that cannot answer.
+    expect(parsed.storage).toBe('memory');
+    expect(parsed.note).toContain('half configured');
   });
 });

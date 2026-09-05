@@ -9,11 +9,11 @@
  * storage in `src/store.ts`, which is what lets the whole API be tested by
  * calling these functions with a plain `Request`.
  */
-import { backend } from '../src/context';
-import { clientIp, error, json, preflight, readJson } from '../src/http';
+import { backend } from '../server/context';
+import { clientIp, error, json, preflight, readJson } from '../server/http';
 import { LEVELS, levelById } from '../src/levels';
-import type { Entry } from '../src/store';
-import { parseLimit, parseSubmission } from '../src/validate';
+import type { Entry } from '../server/store';
+import { parseLimit, parseSubmission } from '../server/validate';
 
 /** How long the edge may hold a board. Long enough to matter, short enough to feel live. */
 const BOARD_CACHE_SECONDS = 10;
