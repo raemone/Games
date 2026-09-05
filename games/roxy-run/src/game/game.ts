@@ -7,7 +7,9 @@ import { Input, type InputState } from '../engine/input';
 import { Renderer } from '../engine/renderer';
 import * as storage from '../engine/storage';
 import type { SaveData } from '../engine/storage';
+import { type Board, type Standing, boardEnabled, fetchBoard, postRun } from '../engine/leaderboard';
 import { LEVELS, WORLD_COUNT, nextLevel } from '../levels';
+import { type BoardStatus, drawBoard, drawInitials, stepCharacter } from './board';
 import { drawHud, drawOverlay, drawTouchControls } from './hud';
 import { type LevelDef, parseLevel } from './level';
 import { createRun, formatScore, formatTime, type Run } from './scoring';
@@ -33,7 +35,20 @@ type Screen =
   | 'complete'
   | 'gameOver'
   | 'finished'
-  | 'confirmReset';
+  | 'confirmReset'
+  | 'board'
+  | 'initials'
+  | 'askShare';
+
+/** A finished run waiting to be posted to the world board. */
+interface PendingPost {
+  readonly levelId: string;
+  readonly score: number;
+  readonly timeMs: number;
+}
+
+/** Where the initials screen goes when it is done. */
+type AfterInitials = 'board' | 'post';
 
 /** How long the victory animation plays before the results panel. */
 const VICTORY_TICKS = 90;
@@ -53,6 +68,25 @@ export class Game {
   private inputCooldown = 0;
   /** Ticks spent watching the victory pose before the results appear. */
   private completeDelay = 0;
+
+  /** The world board being shown, and whether it arrived. */
+  private board: Board | null = null;
+  private boardStatus: BoardStatus = 'loading';
+  /**
+   * Which board request is the current one.
+   *
+   * Flicking through levels starts a request per level, and they can come back
+   * in any order; without this, a slow answer for the level you have left
+   * paints over the level you are looking at.
+   */
+  private boardRequest = 0;
+  /** The run waiting to go to the board, if the player agrees to post it. */
+  private pending: PendingPost | null = null;
+  /** Where the last posted run landed, shown on the results panel. */
+  private standing: Standing | null = null;
+  private initialsChars: string[] = ['A', 'A', 'A'];
+  private initialsSlot = 0;
+  private afterInitials: AfterInitials = 'post';
 
   constructor(
     private readonly renderer: Renderer,
@@ -119,7 +153,18 @@ export class Game {
         break;
 
       case 'confirmReset':
-        // Deliberately inert: only the two buttons decide this one.
+      case 'askShare':
+        // Deliberately inert: only the buttons decide these two. A tap-anywhere
+        // shortcut on a question about posting a child's score is not a
+        // shortcut, it is an answer nobody gave.
+        break;
+
+      case 'board':
+        this.updateBoard(state, ready);
+        break;
+
+      case 'initials':
+        this.updateInitials(state, ready);
         break;
     }
   }
@@ -160,9 +205,49 @@ export class Game {
       case 'play':
         this.go('select');
         break;
+      case 'board':
+        this.openBoard();
+        break;
+      case 'boardPrev':
+        this.stepBoardLevel(-1);
+        break;
+      case 'boardNext':
+        this.stepBoardLevel(1);
+        break;
+      case 'editInitials':
+        this.openInitials('board');
+        break;
+      case 'shareToggle':
+        // From "ask me", turning it on here is the answer, so the game does not
+        // go on to ask at the end of the next level.
+        this.setShare(this.save.settings.share === 'yes' ? 'no' : 'yes');
+        break;
+      case 'shareYes':
+        this.setShare('yes');
+        this.postPending();
+        break;
+      case 'shareNo':
+        this.setShare('no');
+        this.pending = null;
+        this.go('complete');
+        break;
+      case 'initialsOk':
+        this.commitInitials();
+        break;
       default:
+        this.pressInitialsButton(id);
         break;
     }
+  }
+
+  /** The up, down and slot buttons on the initials screen share a shape. */
+  private pressInitialsButton(id: string): void {
+    const match = /^(up|down|slot)([0-2])$/.exec(id);
+    if (!match) return;
+    const slot = Number(match[2]);
+    this.initialsSlot = slot;
+    if (match[1] === 'slot') return;
+    this.initialsChars[slot] = stepCharacter(this.initialsChars[slot] ?? 'A', match[1] === 'up' ? 1 : -1);
   }
 
   /**
@@ -179,6 +264,11 @@ export class Game {
     this.run = createRun();
     this.session = null;
     this.world = null;
+    // A wiped save is a new player id, so nothing on screen still belongs to
+    // whoever was here before.
+    this.board = null;
+    this.pending = null;
+    this.standing = null;
     this.go('select');
   }
 
@@ -207,6 +297,138 @@ export class Game {
     }
 
     if (state.confirmPressed) this.startLevel(this.levelIndex);
+  }
+
+  /**
+   * The world board for whichever level is selected.
+   *
+   * Boards are per level rather than one global table because a single "best
+   * score" across nine levels rewards grinding the most generous one, and
+   * because the interesting question to a child is who is fastest on the level
+   * they are stuck on.
+   */
+  private openBoard(): void {
+    this.board = null;
+    this.boardStatus = 'loading';
+    this.go('board');
+    this.loadBoard();
+  }
+
+  private loadBoard(): void {
+    const level = LEVELS[this.levelIndex];
+    if (!level) return;
+
+    this.boardRequest += 1;
+    const request = this.boardRequest;
+    void fetchBoard(level.id, this.save.playerId).then((board) => {
+      // Ignore an answer to a question we have since moved on from.
+      if (request !== this.boardRequest) return;
+      this.board = board;
+      this.boardStatus = board ? 'ready' : 'error';
+    });
+  }
+
+  /** Flick to the neighbouring level's board, skipping ones still locked. */
+  private stepBoardLevel(delta: number): void {
+    const next = this.levelIndex + delta;
+    const level = LEVELS[next];
+    if (!level || level.world > this.save.unlockedWorld) return;
+    this.levelIndex = next;
+    this.board = null;
+    this.boardStatus = 'loading';
+    this.loadBoard();
+    this.inputCooldown = 10;
+  }
+
+  private updateBoard(state: InputState, ready: boolean): void {
+    if (!ready) return;
+    if (state.right) this.stepBoardLevel(1);
+    else if (state.left) this.stepBoardLevel(-1);
+    else if (state.confirmPressed) this.go('select');
+  }
+
+  private setShare(share: storage.SharePreference): void {
+    this.save = { ...this.save, settings: { ...this.save.settings, share } };
+    storage.save(this.save);
+  }
+
+  /** True when a run could be posted at all: a board exists and was allowed. */
+  private canPost(): boolean {
+    return boardEnabled() && this.save.settings.share !== 'no';
+  }
+
+  private openInitials(after: AfterInitials): void {
+    const existing = this.save.initials || 'AAA';
+    this.initialsChars = [0, 1, 2].map((slot) => existing[slot] ?? 'A');
+    this.initialsSlot = 0;
+    this.afterInitials = after;
+    this.go('initials');
+  }
+
+  private updateInitials(state: InputState, ready: boolean): void {
+    if (!ready) return;
+
+    const slot = this.initialsSlot;
+    if (state.up || state.down) {
+      this.initialsChars[slot] = stepCharacter(this.initialsChars[slot] ?? 'A', state.up ? 1 : -1);
+      this.audio.play('select');
+      this.inputCooldown = 8;
+      return;
+    }
+
+    if (state.left || state.right) {
+      this.initialsSlot = Math.min(2, Math.max(0, slot + (state.right ? 1 : -1)));
+      this.inputCooldown = 10;
+      return;
+    }
+
+    if (state.confirmPressed) this.commitInitials();
+  }
+
+  private commitInitials(): void {
+    this.save = { ...this.save, initials: storage.cleanInitials(this.initialsChars.join('')) };
+    storage.save(this.save);
+    if (this.afterInitials === 'post') {
+      this.postPending();
+      return;
+    }
+    this.go('board');
+    this.loadBoard();
+  }
+
+  /**
+   * Send the finished run, then get out of the way.
+   *
+   * The results panel is shown immediately rather than waiting for the network:
+   * a child who has just finished a level should never be looking at a spinner,
+   * and the rank simply appears a moment later if it arrives at all.
+   */
+  private postPending(): void {
+    const pending = this.pending;
+    if (!pending) {
+      this.go('complete');
+      return;
+    }
+
+    if (!this.save.initials) {
+      this.openInitials('post');
+      return;
+    }
+
+    this.pending = null;
+    this.go('complete');
+    void postRun({
+      levelId: pending.levelId,
+      playerId: this.save.playerId,
+      initials: this.save.initials,
+      score: pending.score,
+      timeMs: pending.timeMs,
+    }).then((standing) => {
+      // A slow answer for a level the player has already left would otherwise
+      // put last level's rank on this level's results panel.
+      if (LEVELS[this.levelIndex]?.id !== pending.levelId) return;
+      this.standing = standing;
+    });
   }
 
   private moveSelection(delta: number): void {
@@ -289,7 +511,27 @@ export class Game {
       unlocks,
     );
     storage.save(this.save);
-    this.go('complete');
+
+    this.standing = null;
+    this.pending = level
+      ? { levelId: level.id, score: this.run.score, timeMs: Math.round(this.run.elapsedMs) }
+      : null;
+
+    if (!this.canPost() || !this.pending) {
+      this.pending = null;
+      this.go('complete');
+      return;
+    }
+
+    // The one time the family is ever asked: there is now something real to
+    // post, so the question is concrete rather than a settings toggle nobody
+    // would have read.
+    if (this.save.settings.share === 'ask') {
+      this.go('askShare');
+      return;
+    }
+
+    this.postPending();
   }
 
   private advance(): void {
@@ -337,8 +579,10 @@ export class Game {
     const layout = this.renderer.layout;
     const screenCtx = this.renderer.screen;
     let resetButton: UiButton | null = null;
+    /** Buttons belonging to a full-screen menu, kept out of the overlay row. */
+    const extraButtons: UiButton[] = [];
 
-    if (this.screen === 'play' || this.screen === 'paused' || this.screen === 'complete' || this.screen === 'gameOver') {
+    if (['play', 'paused', 'complete', 'gameOver', 'askShare'].includes(this.screen)) {
       this.renderWorld();
     }
 
@@ -351,24 +595,36 @@ export class Game {
         // Tucked into the bottom corner and rendered quietly: a parent can
         // find it, a child skimming for the next level will not.
         const margin = uiScale(layout) * 0.8;
-        resetButton = drawTextButton(
-          screenCtx,
-          layout,
-          margin,
-          layout.height - margin - layout.insets.bottom,
-          'reset',
-          'Erase scores',
-          true,
-        );
+        const bottom = layout.height - margin - layout.insets.bottom;
+        resetButton = drawTextButton(screenCtx, layout, margin, bottom, 'reset', 'Erase scores', true);
+        if (boardEnabled()) {
+          extraButtons.push(
+            drawTextButton(
+              screenCtx,
+              layout,
+              layout.width - margin - layout.insets.right - uiScale(layout) * 8,
+              bottom,
+              'board',
+              'World board',
+              true,
+            ),
+          );
+        }
         break;
       }
+      case 'board':
+        extraButtons.push(...this.renderBoard());
+        break;
+      case 'initials':
+        extraButtons.push(...this.renderInitials());
+        break;
       default:
         break;
     }
 
     const hudVisible =
       this.session !== null &&
-      !['title', 'select', 'finished', 'confirmReset'].includes(this.screen);
+      !['title', 'select', 'finished', 'confirmReset', 'board', 'initials'].includes(this.screen);
     if (hudVisible && this.session) drawHud(screenCtx, layout, this.session, this.sprites);
 
     this.buttons = this.renderOverlays();
@@ -384,6 +640,7 @@ export class Game {
       ];
     }
     if (resetButton) this.buttons = [...this.buttons, resetButton];
+    if (extraButtons.length > 0) this.buttons = [...this.buttons, ...extraButtons];
 
     // The pad is only useful while playing; on the menus it covers the cards.
     if (playing) drawTouchControls(screenCtx, this.input);
@@ -402,6 +659,72 @@ export class Game {
     if (!session || !world) return;
     world.draw(this.renderer.world, session);
     this.renderer.present();
+  }
+
+  /** The world board screen: the table, and the controls under it. */
+  private renderBoard(): UiButton[] {
+    const layout = this.renderer.layout;
+    const ctx = this.renderer.screen;
+    const level = LEVELS[this.levelIndex];
+
+    drawBoard(ctx, layout, {
+      levelName: level?.name ?? '',
+      status: this.boardStatus,
+      board: this.board,
+    });
+
+    const row = drawButtonRow(
+      ctx,
+      layout,
+      layout.height * 0.82,
+      [
+        { id: 'boardPrev', text: '<' },
+        { id: 'levels', text: 'Back' },
+        { id: 'boardNext', text: '>' },
+      ],
+      'levels',
+    );
+
+    const size = uiScale(layout);
+    const margin = size * 0.8;
+    const bottom = layout.height - margin - layout.insets.bottom;
+
+    // Both of these are the player's own business rather than part of the
+    // board, so they sit quietly in the corners like the erase button does.
+    // "Ask me" is its own label because a family who has not been asked yet is
+    // not the same as one who said no, and showing them "off" would be a lie.
+    const share = this.save.settings.share;
+    const shareLabel = share === 'yes' ? 'Posting: on' : share === 'no' ? 'Posting: off' : 'Posting: ask me';
+    return [
+      ...row,
+      drawTextButton(ctx, layout, margin, bottom, 'editInitials', `Initials: ${this.save.initials || '---'}`, true),
+      drawTextButton(
+        ctx,
+        layout,
+        layout.width - margin - layout.insets.right - size * 9,
+        bottom,
+        'shareToggle',
+        shareLabel,
+        true,
+      ),
+    ];
+  }
+
+  private renderInitials(): UiButton[] {
+    const layout = this.renderer.layout;
+    const ctx = this.renderer.screen;
+
+    const slots = drawInitials(ctx, layout, {
+      characters: this.initialsChars,
+      slot: this.initialsSlot,
+      tick: this.tick,
+      note:
+        this.afterInitials === 'post'
+          ? 'This is all the board will show about you.'
+          : 'Shown next to your scores on the world board.',
+    });
+
+    return [...slots, ...drawButtonRow(ctx, layout, layout.height * 0.82, [{ id: 'initialsOk', text: 'Done' }], 'initialsOk')];
   }
 
   /** Draw the overlay for the current screen and return its buttons. */
@@ -426,6 +749,31 @@ export class Game {
           null,
         );
 
+      case 'askShare':
+        drawOverlay(
+          ctx,
+          layout,
+          {
+            title: 'Join the world board?',
+            lines: [
+              'Roxy can post your score and time',
+              'next to three initials you pick.',
+              'No name, no account, nothing else.',
+            ],
+          },
+          this.tick,
+        );
+        return drawButtonRow(
+          ctx,
+          layout,
+          buttonRow,
+          [
+            { id: 'shareNo', text: 'No thanks' },
+            { id: 'shareYes', text: 'Yes, post it' },
+          ],
+          'shareYes',
+        );
+
       case 'complete':
         drawOverlay(
           ctx,
@@ -436,6 +784,10 @@ export class Game {
               level?.name ?? '',
               `Score ${formatScore(this.run.score)}`,
               `Time ${formatTime(this.run.elapsedMs)}`,
+              // Only once the board has answered. Until then the panel simply
+              // does not mention it, rather than promising a rank that may
+              // never arrive.
+              ...(this.standing ? [`World rank #${this.standing.rank}`] : []),
             ],
           },
           this.tick,

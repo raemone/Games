@@ -8,7 +8,17 @@
  */
 
 const KEY = 'roxy-run:save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+/**
+ * Whether this device posts its runs to the world board.
+ *
+ * Three states rather than a boolean, because "we have not asked yet" is not
+ * the same as "no". Posting a child's initials and score to a public board is
+ * a decision someone should actually make, so the game asks once, the first
+ * time there is something to post, and never again.
+ */
+export type SharePreference = 'ask' | 'yes' | 'no';
 
 export interface LevelRecord {
   readonly bestScore: number;
@@ -21,10 +31,20 @@ export interface Settings {
   readonly muted: boolean;
   /** Touch controls on the left, for left-handed players. */
   readonly mirrorTouch: boolean;
+  readonly share: SharePreference;
 }
 
 export interface SaveData {
   readonly version: number;
+  /**
+   * A random id for this device, so the board can recognise a returning player
+   * without knowing anything about them. Not a login: clearing the browser's
+   * storage makes a new player, which is the honest trade for having no
+   * accounts at all.
+   */
+  readonly playerId: string;
+  /** Up to three characters shown on the world board. Empty until chosen. */
+  readonly initials: string;
   /** Highest world number the player may enter, 1-based. */
   readonly unlockedWorld: number;
   /** Per-level records keyed by level id. */
@@ -36,11 +56,34 @@ export interface SaveData {
 export function defaultSave(): SaveData {
   return {
     version: SAVE_VERSION,
+    playerId: newPlayerId(),
+    initials: '',
     unlockedWorld: 1,
     levels: {},
     totalBones: 0,
-    settings: { muted: false, mirrorTouch: false },
+    settings: { muted: false, mirrorTouch: false, share: 'ask' },
   };
+}
+
+/** Sixteen hex characters of randomness. The server accepts nothing else. */
+export function newPlayerId(): string {
+  const bytes = new Uint8Array(8);
+  const source = globalThis.crypto;
+  if (source?.getRandomValues) source.getRandomValues(bytes);
+  // No crypto at all is old or exotic, but a duplicate id is far better than a
+  // crash on boot.
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** Clean up initials the way the server will: uppercase, A-Z and 0-9, three at most. */
+export function cleanInitials(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+}
+
+function sharePreference(value: unknown): SharePreference {
+  return value === 'yes' || value === 'no' ? value : 'ask';
 }
 
 function num(value: unknown, fallback: number): number {
@@ -80,14 +123,24 @@ export function migrate(raw: unknown): SaveData {
       ? (input.settings as Record<string, unknown>)
       : {};
 
+  // A save written before the world board existed has no player id; minting one
+  // here is what upgrades it in place, rather than throwing the save away.
+  const playerId =
+    typeof input.playerId === 'string' && /^[0-9a-f]{16}$/.test(input.playerId)
+      ? input.playerId
+      : base.playerId;
+
   return {
     version: SAVE_VERSION,
+    playerId,
+    initials: cleanInitials(input.initials),
     unlockedWorld: Math.max(1, Math.floor(num(input.unlockedWorld, 1))),
     levels,
     totalBones: Math.max(0, Math.floor(num(input.totalBones, 0))),
     settings: {
       muted: bool(settings.muted, base.settings.muted),
       mirrorTouch: bool(settings.mirrorTouch, base.settings.mirrorTouch),
+      share: sharePreference(settings.share),
     },
   };
 }
