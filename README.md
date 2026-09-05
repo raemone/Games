@@ -89,7 +89,8 @@ every frame.
 
 ### The world board
 
-Every level has a global top ten, open from the level select screen. It is the
+The title screen shows who is ahead across every level, and each level has its
+own global top ten, open from the level select screen. It is the
 one part of this repository with a backend: a Vercel function and a Redis
 sorted set, in `api/` and `server/` inside the game's own directory, documented
 in [API.md](games/roxy-run/API.md). It reaches Redis over REST or over a

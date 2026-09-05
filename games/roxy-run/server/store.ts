@@ -24,6 +24,23 @@ export interface Standing {
   readonly entry: Entry;
 }
 
+/** One player's standing across every level, for the title screen's board. */
+export interface OverallEntry {
+  readonly playerId: string;
+  readonly initials: string;
+  /** Their best score on each level they have posted on, added together. */
+  readonly score: number;
+  /** How many levels that is - context for a total, and a tie-breaker. */
+  readonly levels: number;
+}
+
+export interface OverallBoard {
+  readonly entries: readonly OverallEntry[];
+  /** Everyone who has posted anywhere, not just those on the page. */
+  readonly players: number;
+  readonly you: { readonly rank: number; readonly entry: OverallEntry } | null;
+}
+
 export interface Store {
   /** Record a run, keeping the player's best score and best time. */
   submit(levelId: string, entry: Entry): Promise<void>;
@@ -33,6 +50,13 @@ export interface Store {
   standing(levelId: string, playerId: string): Promise<Standing | null>;
   /** How many players have posted on a level. */
   count(levelId: string): Promise<number>;
+  /**
+   * Every level's board added together, best first.
+   *
+   * The level ids are passed in rather than known here, so the storage layer
+   * stays ignorant of what a level is.
+   */
+  overall(levelIds: readonly string[], playerId: string | null, limit: number): Promise<OverallBoard>;
   /** Count one request against a window. Returns false when the caller is over. */
   allow(key: string, limit: number, windowSeconds: number): Promise<boolean>;
 }
@@ -62,6 +86,37 @@ function initialsOf(value: unknown): string {
  */
 export function bestFirst(a: Entry, b: Entry): number {
   return b.score - a.score || a.timeMs - b.timeMs;
+}
+
+/**
+ * Turn per-player totals into a ranked board.
+ *
+ * Highest total first; where two players tie, the one who got there across
+ * more levels is ahead, because breadth is the harder way to the same number.
+ */
+function rankOverall(
+  totals: Map<string, { score: number; levels: number }>,
+  names: Map<string, string>,
+  playerId: string | null,
+  limit: number,
+): OverallBoard {
+  const ordered = [...totals.entries()]
+    .map(([id, total]) => ({
+      playerId: id,
+      initials: names.get(id) ?? '???',
+      score: total.score,
+      levels: total.levels,
+    }))
+    .sort((a, b) => b.score - a.score || b.levels - a.levels);
+
+  const index = playerId === null ? -1 : ordered.findIndex((entry) => entry.playerId === playerId);
+  const mine = ordered[index];
+
+  return {
+    entries: ordered.slice(0, limit),
+    players: ordered.length,
+    you: mine ? { rank: index + 1, entry: mine } : null,
+  };
 }
 
 export class RedisStore implements Store {
@@ -138,6 +193,42 @@ export class RedisStore implements Store {
   }
 
   /**
+   * Read every level's board and add them up.
+   *
+   * Nine full ZRANGEs in one round trip, summed here rather than in the
+   * database. Redis has no way to add sorted sets whose members overlap
+   * partially without writing a temporary key per request, and at the size
+   * this board will ever be - a family, not a franchise - the arithmetic is
+   * nothing next to the round trip it would cost to avoid.
+   */
+  async overall(levelIds: readonly string[], playerId: string | null, limit: number): Promise<OverallBoard> {
+    const boards = await this.redis.pipeline(
+      levelIds.map((levelId) => ['ZRANGE', scoreKey(levelId), 0, -1, 'WITHSCORES']),
+    );
+
+    const totals = new Map<string, { score: number; levels: number }>();
+    for (const board of boards) {
+      const flat = Array.isArray(board) ? board : [];
+      for (let i = 0; i + 1 < flat.length; i += 2) {
+        const id = String(flat[i]);
+        const running = totals.get(id) ?? { score: 0, levels: 0 };
+        running.score += num(flat[i + 1]);
+        running.levels += 1;
+        totals.set(id, running);
+      }
+    }
+
+    if (totals.size === 0) return { entries: [], players: 0, you: null };
+
+    const ids = [...totals.keys()];
+    const raw = await this.redis.command(['HMGET', NAMES_KEY, ...ids]);
+    const list = Array.isArray(raw) ? raw : [];
+    const names = new Map(ids.map((id, index) => [id, initialsOf(list[index])]));
+
+    return rankOverall(totals, names, playerId, limit);
+  }
+
+  /**
    * A fixed window rather than a sliding one: two commands, no bookkeeping,
    * and the worst case is that someone gets a double allowance across a window
    * boundary. For keeping one tablet from hammering the board, that is plenty.
@@ -199,5 +290,22 @@ export class MemoryStore implements Store {
     const count = (this.hits.get(full) ?? 0) + 1;
     this.hits.set(full, count);
     return count <= limit;
+  }
+
+  async overall(levelIds: readonly string[], playerId: string | null, limit: number): Promise<OverallBoard> {
+    const totals = new Map<string, { score: number; levels: number }>();
+    const names = new Map<string, string>();
+
+    for (const levelId of levelIds) {
+      for (const entry of this.board(levelId).values()) {
+        const running = totals.get(entry.playerId) ?? { score: 0, levels: 0 };
+        running.score += entry.score;
+        running.levels += 1;
+        totals.set(entry.playerId, running);
+        names.set(entry.playerId, entry.initials);
+      }
+    }
+
+    return rankOverall(totals, names, playerId, limit);
   }
 }
