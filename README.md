@@ -134,6 +134,10 @@ account, so nothing about who is playing ever leaves the tablet except a run you
 explicitly post to the world board. The trade-off is that progress does not
 follow you from one device to another.
 
+There is no way to erase it from inside the game. A button for that is one
+mis-tap away from destroying a sibling's progress, and clearing the browser's
+data does the same job on the rare occasion anyone means it.
+
 ---
 
 ## Poop Patrol
