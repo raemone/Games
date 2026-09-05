@@ -104,9 +104,16 @@ instead of a copy that could drift.
 A run is posted as a score, a time and up to three characters. No name, no
 account, no email — initials are the arcade convention this game is already
 pretending to be from, they need no keyboard on a tablet, and they are the least
-a leaderboard can know while still being a leaderboard. A device is a random id
-generated on first play and kept in `localStorage`; clearing the browser's data
-makes a new player, which is the honest trade for having no accounts at all.
+a leaderboard can know while still being a leaderboard.
+
+The initials are the player, not the tablet. One tablet gets passed between
+children, so each set of initials keeps its own id and its own scores, and
+typing a set again returns to that player. Ids are random, made on the device
+and kept in `localStorage`; clearing the browser's data makes new players of
+everyone, which is the honest trade for having no accounts at all. The flip
+side is that initials cannot be corrected afterwards - changing them is
+becoming somebody else, which is precisely what stops one child's turn from
+renaming their sibling's scores.
 
 Nothing is posted until someone says so. The first time there is a run to send,
 the game asks once — at the end of a level, where the question is about
