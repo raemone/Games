@@ -186,9 +186,29 @@ describe('GET /api/health', () => {
   it('admits when there is no database behind it', async () => {
     const parsed = await body(await health(new Request('https://roxy.example/api/health')));
     expect(parsed).toMatchObject({ ok: true, storage: 'memory', restVariablesSeen: [] });
-    expect(parsed.note).toContain('lost');
-    // The likeliest cause of an attached-but-unusable store, named on the spot.
-    expect(parsed.note).toContain('redis://');
+    // Both halves: what it costs, and which of the three causes it is.
+    expect(parsed.note).toContain('lost when the function restarts');
+    expect(parsed.note).toContain('scoped to a different environment');
+  });
+
+  it('separates "nothing arrived" from "the wrong protocol arrived"', async () => {
+    // The two failures look identical from the game's side and need opposite
+    // fixes: one is a scoping mistake, the other needs a different client.
+    const nothing = await body(await health(new Request('https://roxy.example/api/health')));
+    expect(nothing.storageVariablesSeen).toEqual([]);
+    expect(nothing.note).toContain('scoped to a different environment');
+
+    vi.stubEnv('REDIS_URL', 'redis://user:hunter2@somewhere.example:6379');
+    resetBackend();
+
+    const wrongProtocol = await body(await health(new Request('https://roxy.example/api/health')));
+    expect(wrongProtocol.storageVariablesSeen).toEqual(['REDIS_URL']);
+    expect(wrongProtocol.note).toContain('wrong protocol');
+    expect(wrongProtocol.note).toContain('redis://');
+    expect(wrongProtocol.note).toContain('lost when the function restarts');
+    // The credential inside that URL must never reach an unauthenticated route.
+    expect(JSON.stringify(wrongProtocol)).not.toContain('hunter2');
+    expect(JSON.stringify(wrongProtocol)).not.toContain('somewhere.example');
   });
 
   it('names the variables it can see, and never their values', async () => {

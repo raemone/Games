@@ -57,6 +57,25 @@ export function restVariablesPresent(env: Env = currentEnv()): string[] {
   return REST_VARIABLES.filter((name) => (env[name] ?? '') !== '');
 }
 
+/**
+ * Anything in the environment that looks like it belongs to a data store.
+ *
+ * Names only, never values - this is read by an unauthenticated route, and a
+ * token is exactly the thing that must not appear there. A name is enough to
+ * answer the only question being asked: did the store's variables reach this
+ * function at all, and are they the REST pair or a connection string?
+ *
+ * The two answers point at completely different fixes. Nothing at all usually
+ * means the variables exist but are not scoped to this deployment's
+ * environment; a `REDIS_URL` on its own means the store speaks TCP and this
+ * client, which speaks REST over fetch, cannot use it.
+ */
+export function storageVariablesPresent(env: Env = currentEnv()): string[] {
+  return Object.keys(env)
+    .filter((name) => /redis|kv_|upstash/i.test(name) && (env[name] ?? '') !== '')
+    .sort();
+}
+
 async function post(config: RedisConfig, path: string, body: unknown): Promise<unknown> {
   const response = await fetch(`${config.url}${path}`, {
     method: 'POST',

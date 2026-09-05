@@ -18,7 +18,7 @@
 import { backend } from './context.js';
 import { clientIp, error, json, preflight, readJson } from './http.js';
 import { LEVELS, levelById } from './levels.js';
-import { restVariablesPresent } from './redis.js';
+import { restVariablesPresent, storageVariablesPresent } from './redis.js';
 import type { Entry } from './store.js';
 import { parseLimit, parseSubmission } from './validate.js';
 
@@ -130,6 +130,25 @@ export async function boardPost(request: Request): Promise<Response> {
   );
 }
 
+/** What running on the memory store costs, said the same way every time. */
+const MEMORY_COST = 'Scores are kept in memory and lost when the function restarts.';
+
+/**
+ * Why there is no database, in the terms of the fix it needs.
+ *
+ * Three causes that look identical from the game's side and want completely
+ * different things done about them.
+ */
+function causeOfMemory(restVariables: readonly string[], storageVariables: readonly string[]): string {
+  if (restVariables.length > 0) {
+    return 'Some REST variables are set but not a complete URL and token pair, so the store is half configured.';
+  }
+  if (storageVariables.length > 0) {
+    return 'A store is attached but speaks the wrong protocol: the variables above are set, none of them the REST pair this client needs, and a redis:// connection string cannot be used over fetch.';
+  }
+  return 'No store variable of any kind reached this function. If one is attached, it is most likely scoped to a different environment than this deployment.';
+}
+
 /**
  * Is the board actually storing anything?
  *
@@ -141,6 +160,7 @@ export async function boardPost(request: Request): Promise<Response> {
 export async function healthGet(request: Request): Promise<Response> {
   const { persistent } = backend();
   const seen = restVariablesPresent();
+  const storageVariablesSeen = storageVariablesPresent();
 
   return json(
     {
@@ -148,11 +168,11 @@ export async function healthGet(request: Request): Promise<Response> {
       storage: persistent ? 'redis' : 'memory',
       // Names only, never values: this route is unauthenticated.
       restVariablesSeen: seen,
-      note: persistent
-        ? undefined
-        : seen.length === 0
-          ? 'No database attached: scores are kept in memory and lost when the function restarts. If a Redis store is attached, check it exposes the REST variables - a redis:// connection string alone cannot be used from here.'
-          : 'A database is half configured: some REST variables are set but not a complete URL and token pair.',
+      storageVariablesSeen,
+      // Two sentences whenever there is no database: what it costs, and why.
+      // The consequence is the same every time - scores do not survive - but
+      // the cause decides the fix, and they are not guessable from each other.
+      note: persistent ? undefined : `${MEMORY_COST} ${causeOfMemory(seen, storageVariablesSeen)}`,
     },
     { origin: request.headers.get('origin') },
   );
