@@ -4,6 +4,8 @@ import {
   type SaveData,
   cleanInitials,
   clear,
+  reconcilePlayer,
+  withFreshPlayer,
   withInitials,
   defaultSave,
   load,
@@ -168,6 +170,48 @@ describe('the world board identity', () => {
   it('ignores initials that clean away to nothing', () => {
     const before = withInitials(defaultSave(), 'RAE');
     expect(withInitials(before, '!!!')).toBe(before);
+  });
+
+  it('abandons an id the board says belongs to someone else', () => {
+    // The state a tablet was actually left in: the old build changed the
+    // initials to REM while keeping the device's id, and the server still
+    // calls that id JUL. Nothing local can see the contradiction - the save
+    // looks consistent - so the board has to be the one to settle it.
+    const stuck = migrate({ playerId: 'a1b2c3d4e5f60718', initials: 'REM' });
+    expect(stuck.players).toEqual({ REM: 'a1b2c3d4e5f60718' });
+
+    const fixed = reconcilePlayer(stuck, 'JUL');
+    expect(fixed.playerId).not.toBe('a1b2c3d4e5f60718');
+    expect(fixed.initials).toBe('REM');
+    expect(fixed.players.REM).toBe(fixed.playerId);
+  });
+
+  it('leaves a player alone when the board agrees with them', () => {
+    const rae = withInitials(defaultSave(), 'RAE');
+    expect(reconcilePlayer(rae, 'RAE')).toBe(rae);
+  });
+
+  it('says nothing about an id the board has never seen', () => {
+    // A player who has not posted yet has no name on the board, which is not
+    // a disagreement - re-minting there would churn an id for no reason.
+    const rae = withInitials(defaultSave(), 'RAE');
+    expect(reconcilePlayer(rae, undefined)).toBe(rae);
+    expect(reconcilePlayer(rae, '')).toBe(rae);
+  });
+
+  it('settles after one correction rather than churning', () => {
+    // The fresh id has never posted, so the next answer names nobody and the
+    // second pass is a no-op. Without that this would re-mint on every load.
+    const fixed = reconcilePlayer(migrate({ playerId: 'a1b2c3d4e5f60718', initials: 'REM' }), 'JUL');
+    expect(reconcilePlayer(fixed, undefined)).toBe(fixed);
+    expect(reconcilePlayer(fixed, 'REM')).toBe(fixed);
+  });
+
+  it('keeps the other players on the device when one is re-minted', () => {
+    const two = withInitials(withInitials(defaultSave(), 'RAE'), 'MAX');
+    const fixed = withFreshPlayer(two);
+    expect(fixed.players.RAE).toBe(two.players.RAE);
+    expect(fixed.players.MAX).not.toBe(two.players.MAX);
   });
 
   it('cleans initials to what the board can show', () => {

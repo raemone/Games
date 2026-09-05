@@ -313,6 +313,10 @@ export class Game {
     void fetchBoard(level.id, this.save.playerId).then((board) => {
       // Ignore an answer to a question we have since moved on from.
       if (request !== this.boardRequest) return;
+      if (this.reconcile(board?.you?.initials)) {
+        this.loadBoard();
+        return;
+      }
       this.board = board;
       this.boardStatus = board ? 'ready' : 'error';
     });
@@ -419,6 +423,10 @@ export class Game {
       // A slow answer for a level the player has already left would otherwise
       // put last level's rank on this level's results panel.
       if (LEVELS[this.levelIndex]?.id !== pending.levelId) return;
+      // The run is already recorded under whatever name the board holds for
+      // this id. Nothing can move it, but the next one can go to the right
+      // player, and showing a rank belonging to someone else would be a lie.
+      if (this.reconcile(standing?.initials)) return;
       this.standing = standing;
     });
   }
@@ -561,6 +569,22 @@ export class Game {
   }
 
   /**
+   * Believe the board about who this id is, and start again if it is not us.
+   *
+   * Returns true when the identity changed, which means whatever was just
+   * fetched belongs to somebody else and the caller should ask again.
+   */
+  private reconcile(boardInitials: string | undefined): boolean {
+    const reconciled = storage.reconcilePlayer(this.save, boardInitials);
+    if (reconciled === this.save) return false;
+
+    this.save = reconciled;
+    storage.save(this.save);
+    this.standing = null;
+    return true;
+  }
+
+  /**
    * Fetch the overall board for the title screen.
    *
    * Once per visit to the title screen rather than on a timer: the board
@@ -572,6 +596,12 @@ export class Game {
     this.overallStatus = 'loading';
     void fetchOverall(this.save.playerId).then((board) => {
       if (this.screen !== 'title') return;
+      // Asked before anyone has played a level, so this is usually where a
+      // wrongly held id is caught - long before it can post anything.
+      if (this.reconcile(board?.you?.initials)) {
+        this.loadOverall();
+        return;
+      }
       this.overall = board;
       this.overallStatus = board ? 'ready' : 'error';
     });
