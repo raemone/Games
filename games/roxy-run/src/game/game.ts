@@ -293,8 +293,6 @@ export class Game {
    * they are stuck on.
    */
   private openBoard(): void {
-    this.board = null;
-    this.boardStatus = 'loading';
     this.go('board');
     this.loadBoard();
   }
@@ -302,6 +300,13 @@ export class Game {
   private loadBoard(): void {
     const level = LEVELS[this.levelIndex];
     if (!level) return;
+
+    // Clear what is on screen first. Every caller is changing something the
+    // board depends on - the level, or which player is asking - so leaving the
+    // old one up means showing another player's standing as though it were
+    // yours, right up until the answer arrives.
+    this.board = null;
+    this.boardStatus = 'loading';
 
     this.boardRequest += 1;
     const request = this.boardRequest;
@@ -319,8 +324,6 @@ export class Game {
     const level = LEVELS[next];
     if (!level || level.world > this.save.unlockedWorld) return;
     this.levelIndex = next;
-    this.board = null;
-    this.boardStatus = 'loading';
     this.loadBoard();
     this.inputCooldown = 10;
   }

@@ -62,8 +62,35 @@ boot().catch(showFailure);
 // A failure here is not worth interrupting play for.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
-      /* offline support is a bonus, not a requirement */
-    });
+    void navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`)
+      .then((registration) => {
+        // Ask again whenever the game comes back to the foreground. An
+        // installed game on a tablet can go weeks without a cold start, and
+        // until it checks it keeps running whatever it was last given.
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) void registration.update();
+        });
+      })
+      .catch(() => {
+        /* offline support is a bonus, not a requirement */
+      });
+  });
+
+  /**
+   * Reload once when a new worker takes over.
+   *
+   * Fetching the new version is not the same as running it: the page carries
+   * on with the code it started with until something reloads it. That gap is
+   * how a tablet ends up playing by rules the server has already moved past -
+   * and the player has no way to know, because everything looks fine.
+   *
+   * The flag is what stops the reload from happening again on the way back up.
+   */
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
   });
 }
