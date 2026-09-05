@@ -807,6 +807,12 @@ export class Game {
               level?.name ?? '',
               `Score ${formatScore(this.run.score)}`,
               `Time ${formatTime(this.run.elapsedMs)}`,
+              // Where that score came from. The clock is the biggest part of
+              // it by far, and a child who is never shown that has no reason
+              // to believe hurrying is worth anything.
+              ...(this.session?.bonus
+                ? [`Fast finish +${this.session.bonus.timeBonus}  ·  Bones +${this.session.bonus.boneBonus}`]
+                : []),
               // Only once the board has answered. Until then the panel simply
               // does not mention it, rather than promising a rank that may
               // never arrive.

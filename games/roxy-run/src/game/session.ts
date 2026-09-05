@@ -19,7 +19,16 @@ import {
   updateEntity,
 } from './entities';
 import type { Level } from './level';
-import { type Run, bopEnemy, collectBone, finishLevel, resetChain, respawn, takeHit } from './scoring';
+import {
+  type GoalBonus,
+  type Run,
+  bopEnemy,
+  collectBone,
+  finishLevel,
+  resetChain,
+  respawn,
+  takeHit,
+} from './scoring';
 import type { Theme } from './theme';
 
 export type SessionState = 'playing' | 'dying' | 'complete' | 'timeUp' | 'gameOver';
@@ -94,6 +103,15 @@ export class Session {
   private ticks = 0;
   /** Set once, so the goal cannot be scored twice. */
   private finished = false;
+  /**
+   * What reaching the goal paid, kept so the results panel can show it.
+   *
+   * Most of a good run's score is the clock: twenty points a second left,
+   * which on a level with seven minutes on it is worth more than every bone
+   * in it. That is only an incentive to hurry if the player is told, so the
+   * figure is kept rather than discarded.
+   */
+  bonus: GoalBonus | null = null;
   /**
    * World x of the thing chasing the player, or null on a level without one.
    * It is a moving left-hand wall rather than an entity: nothing about it
@@ -528,7 +546,7 @@ export class Session {
     if (this.finished) return;
     this.finished = true;
     this.state = 'complete';
-    finishLevel(this.run, this.timeLimitMs);
+    this.bonus = finishLevel(this.run, this.timeLimitMs);
     this.audio.play('goal');
   }
 
@@ -536,6 +554,7 @@ export class Session {
   restart(): void {
     this.state = 'playing';
     this.finished = false;
+    this.bonus = null;
     this.ticks = 0;
     this.run.elapsedMs = 0;
     this.entities = createEntities(this.level);
