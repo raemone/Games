@@ -104,6 +104,39 @@ function sharePreference(value: unknown): SharePreference {
 }
 
 /**
+ * Give the current initials a brand new id, abandoning the one held now.
+ *
+ * For when the id turns out not to be this player's - see `reconcilePlayer`.
+ */
+export function withFreshPlayer(data: SaveData): SaveData {
+  if (data.initials === '') return data;
+  const playerId = newPlayerId();
+  return { ...data, playerId, players: { ...data.players, [data.initials]: playerId } };
+}
+
+/**
+ * Take the board's word for who an id belongs to.
+ *
+ * A name is fixed on the server the first time an id posts, so the board is
+ * the authority on whose id this is - and if it answers with initials the
+ * player did not choose, the id is somebody else's and this device should stop
+ * posting under it.
+ *
+ * That happens for real: a save written by the build that gave one id to the
+ * whole device can hold initials the server never accepted, because the
+ * rename was refused. Nothing local can see the contradiction; only the board
+ * can, and only when asked.
+ *
+ * Minting a new id loses nothing. The scores under the old one are recorded
+ * against the name the board already shows, which is the name they will keep.
+ */
+export function reconcilePlayer(data: SaveData, boardInitials: string | undefined): SaveData {
+  if (data.initials === '' || !boardInitials) return data;
+  if (boardInitials === data.initials) return data;
+  return withFreshPlayer(data);
+}
+
+/**
  * Switch the device to whoever these initials belong to.
  *
  * Returns the save unchanged in every way but the player: their id, ready for
