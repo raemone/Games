@@ -1,19 +1,15 @@
 /**
- * The environment, without a dependency on Node's type definitions.
+ * The environment, as the API sees it.
  *
- * The functions in `api/` run on Node and read `process.env`, but they live in
- * the game's package, which is a browser package. Pulling @types/node in here
- * to describe four environment variables would put Node's globals in scope for
- * every game file too - and quietly change what `setTimeout` returns. Four
- * lines is the cheaper trade.
+ * A named type rather than reaching for `process.env` directly at each call
+ * site: every function that reads configuration takes an `Env`, so a test can
+ * hand it a plain object instead of mutating the real environment.
  */
 
 /** Process environment: every variable is a string, or absent. */
 export type Env = Readonly<Record<string, string | undefined>>;
 
-declare const process: { readonly env: Env };
-
-/** The live environment, read through the one declaration above. */
+/** The live environment. */
 export function currentEnv(): Env {
   return process.env;
 }

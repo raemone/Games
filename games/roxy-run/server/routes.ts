@@ -144,7 +144,7 @@ function causeOfMemory(restVariables: readonly string[], storageVariables: reado
     return 'Some REST variables are set but not a complete URL and token pair, so the store is half configured.';
   }
   if (storageVariables.length > 0) {
-    return 'A store is attached but speaks the wrong protocol: the variables above are set, none of them the REST pair this client needs, and a redis:// connection string cannot be used over fetch.';
+    return 'A store is attached - the variables above are set - but none of them is a REST pair or a usable redis:// URL, so there is nothing here to connect to.';
   }
   return 'No store variable of any kind reached this function. If one is attached, it is most likely scoped to a different environment than this deployment.';
 }
@@ -158,7 +158,7 @@ function causeOfMemory(restVariables: readonly string[], storageVariables: reado
  * without reaching for the dashboard.
  */
 export async function healthGet(request: Request): Promise<Response> {
-  const { persistent } = backend();
+  const { persistent, transport } = backend();
   const seen = restVariablesPresent();
   const storageVariablesSeen = storageVariablesPresent();
 
@@ -166,6 +166,9 @@ export async function healthGet(request: Request): Promise<Response> {
     {
       ok: true,
       storage: persistent ? 'redis' : 'memory',
+      // Which way it is reached, because the two fail differently: REST on a
+      // bad token, a socket on a firewall or an expired certificate.
+      transport,
       // Names only, never values: this route is unauthenticated.
       restVariablesSeen: seen,
       storageVariablesSeen,

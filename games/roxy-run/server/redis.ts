@@ -8,8 +8,7 @@
  */
 
 import { type Env, currentEnv } from './env.js';
-
-export type Command = readonly (string | number)[];
+import type { Command, Redis } from './protocol.js';
 
 export interface RedisConfig {
   readonly url: string;
@@ -99,21 +98,19 @@ function unwrap(payload: unknown): unknown {
   return record.result;
 }
 
-/** Run one command and return its result. */
-export async function command(config: RedisConfig, args: Command): Promise<unknown> {
-  return unwrap(await post(config, '', args));
+/** The REST transport: every command is a JSON array posted to an endpoint. */
+export class RestRedis implements Redis {
+  constructor(private readonly config: RedisConfig) {}
+
+  async command(args: Command): Promise<unknown> {
+    return unwrap(await post(this.config, '', args));
+  }
+
+  async pipeline(commands: readonly Command[]): Promise<unknown[]> {
+    if (commands.length === 0) return [];
+    const payload = await post(this.config, '/pipeline', commands);
+    if (!Array.isArray(payload)) throw new Error('redis pipeline returned no array');
+    return payload.map(unwrap);
+  }
 }
 
-/**
- * Run several commands in one round trip.
- *
- * Worth having rather than a loop of `command`: a submission is four writes,
- * and four sequential requests to a database in another region is most of the
- * time the player spends waiting.
- */
-export async function pipeline(config: RedisConfig, commands: readonly Command[]): Promise<unknown[]> {
-  if (commands.length === 0) return [];
-  const payload = await post(config, '/pipeline', commands);
-  if (!Array.isArray(payload)) throw new Error('redis pipeline returned no array');
-  return payload.map(unwrap);
-}

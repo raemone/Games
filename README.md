@@ -92,7 +92,8 @@ every frame.
 Every level has a global top ten, open from the level select screen. It is the
 one part of this repository with a backend: a Vercel function and a Redis
 sorted set, in `api/` and `server/` inside the game's own directory, documented
-in [API.md](games/roxy-run/API.md).
+in [API.md](games/roxy-run/API.md). It reaches Redis over REST or over a
+socket, whichever the attached database offers.
 
 They live in the game's directory because that is the directory Vercel deploys:
 the same project serves the game and its API, which means one deployment rather

@@ -40,11 +40,21 @@ async function body(response: Response): Promise<Record<string, any>> {
 }
 
 beforeEach(() => {
-  // No database attached, so every test starts on a fresh memory store.
-  vi.stubEnv('KV_REST_API_URL', '');
-  vi.stubEnv('KV_REST_API_TOKEN', '');
-  vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
-  vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
+  // No database attached, so every test starts on a fresh memory store. Every
+  // variable a transport looks at has to be cleared, not just the REST pair:
+  // one test stubs a connection string, and without this it leaks into the
+  // next and quietly gives it a working database.
+  for (const name of [
+    'KV_REST_API_URL',
+    'KV_REST_API_TOKEN',
+    'UPSTASH_REDIS_REST_URL',
+    'UPSTASH_REDIS_REST_TOKEN',
+    'REDIS_URL',
+    'KV_URL',
+    'UPSTASH_REDIS_URL',
+  ]) {
+    vi.stubEnv(name, '');
+  }
   resetBackend();
 });
 
@@ -191,24 +201,25 @@ describe('GET /api/health', () => {
     expect(parsed.note).toContain('scoped to a different environment');
   });
 
-  it('separates "nothing arrived" from "the wrong protocol arrived"', async () => {
-    // The two failures look identical from the game's side and need opposite
-    // fixes: one is a scoping mistake, the other needs a different client.
+  it('separates "nothing arrived" from "a store is connected"', async () => {
+    // These looked identical from the game's side, and the difference is what
+    // told us the store was attached over TCP rather than missing entirely.
     const nothing = await body(await health(new Request('https://roxy.example/api/health')));
     expect(nothing.storageVariablesSeen).toEqual([]);
     expect(nothing.note).toContain('scoped to a different environment');
+    expect(nothing.transport).toBeNull();
 
     vi.stubEnv('REDIS_URL', 'redis://user:hunter2@somewhere.example:6379');
     resetBackend();
 
-    const wrongProtocol = await body(await health(new Request('https://roxy.example/api/health')));
-    expect(wrongProtocol.storageVariablesSeen).toEqual(['REDIS_URL']);
-    expect(wrongProtocol.note).toContain('wrong protocol');
-    expect(wrongProtocol.note).toContain('redis://');
-    expect(wrongProtocol.note).toContain('lost when the function restarts');
+    // A redis:// URL is no longer the wrong protocol - it is now the one this
+    // project runs on - so it reports a working store over a socket.
+    const overSocket = await body(await health(new Request('https://roxy.example/api/health')));
+    expect(overSocket).toMatchObject({ storage: 'redis', transport: 'tcp' });
+    expect(overSocket.note).toBeUndefined();
     // The credential inside that URL must never reach an unauthenticated route.
-    expect(JSON.stringify(wrongProtocol)).not.toContain('hunter2');
-    expect(JSON.stringify(wrongProtocol)).not.toContain('somewhere.example');
+    expect(JSON.stringify(overSocket)).not.toContain('hunter2');
+    expect(JSON.stringify(overSocket)).not.toContain('somewhere.example');
   });
 
   it('names the variables it can see, and never their values', async () => {

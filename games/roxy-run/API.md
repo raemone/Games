@@ -5,8 +5,8 @@ runtime dependencies.
 
 ```
 games/roxy-run/
-  api/            the functions themselves - one file per route
-  server/         rules and storage, which is where the actual thinking is
+  api/            the routes - each a try/catch around the handlers below
+  server/         rules, storage and the two Redis transports
   test/server/    their tests
   tools/serve.mjs a local runner, so the API works without the Vercel CLI
 ```
@@ -75,13 +75,48 @@ VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev
 
 | Variable | |
 |---|---|
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Set by Vercel KV. |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Set by the Upstash integration. Either pair works. |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Set by Vercel KV. Reached over REST. |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Set by the Upstash integration. Also REST. |
+| `REDIS_URL`, `KV_URL`, `UPSTASH_REDIS_URL` | A `redis://` or `rediss://` connection string, reached over a socket. |
 | `ALLOWED_ORIGINS` | Extra origins allowed to read the board. Optional. |
 
-Check `/api/health` after deploying. `"storage":"memory"` means no database was
-found: the API will answer every request happily and forget each one, which
-from the game's side is indistinguishable from nobody having played yet.
+## Two transports
+
+Managed Redis comes in two flavours and the store here speaks both, choosing
+whichever the environment offers:
+
+- **REST over fetch**, when a URL and token are set. Preferred: nothing to keep
+  open, no handshake on a cold start.
+- **A socket**, when only a connection string is set - RESP2 over `node:net`,
+  or `node:tls` for `rediss://`. The connection is held at module scope and
+  reused, because a warm instance serves many requests and a handshake per
+  score is a handshake too many.
+
+Neither is visible to the storage code, which takes the `Redis` interface in
+`server/protocol.ts`. Adding the socket changed no storage logic and broke no
+storage test.
+
+The protocol itself is two pure functions in `server/resp.ts`, tested without a
+socket anywhere near them, and the client is tested against a stand-in Redis on
+a real port - including replies that arrive one byte at a time, which is the
+failure a mocked socket would never show you.
+
+Check `/api/health` after deploying:
+
+```json
+{"ok":true,"storage":"redis","transport":"tcp","restVariablesSeen":[],"storageVariablesSeen":["REDIS_URL"]}
+```
+
+`"storage":"memory"` means no database was found: the API will answer every
+request happily and forget each one, which from the game's side is
+indistinguishable from nobody having played yet. The `note` in that case says
+which of the three causes it is - nothing set, half a REST pair, or variables
+that exist but are scoped to another environment - because they need different
+fixes and are not guessable from each other.
+
+`storageVariablesSeen` lists the names of any store-ish variables the function
+can see. Names only, never values: the route is unauthenticated and a
+connection string carries a password.
 
 ## What stops a made-up score
 
