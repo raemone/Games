@@ -75,8 +75,6 @@ function buildProps() {
     ['spike', props.spike()],
     ['star', props.star()],
     ['crate', props.crate()],
-    ['checkpoint', props.checkpoint(false)],
-    ['checkpointLit', props.checkpoint(true)],
     ['goal', props.goal()],
   ];
 

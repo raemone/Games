@@ -99,10 +99,12 @@ describe('the star power-up', () => {
     play.body.x = duck.x;
     play.body.y = duck.y;
     play.body.grounded = true;
+    const before = play.run.bones;
     play.update(IDLE);
 
     expect(duck.taken, 'the duck should have been flattened').toBe(true);
-    expect(play.run.bones, 'and it should not have cost anything').toBe(3);
+    // Not an exact count: she may sweep up a bone lying in the same place.
+    expect(play.run.bones, 'and it should not have cost anything').toBeGreaterThanOrEqual(before);
   });
 
   it('does not survive a death, so it cannot be banked', () => {

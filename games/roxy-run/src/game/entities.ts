@@ -28,7 +28,6 @@ const SIZES: Readonly<Record<EntityKind, { w: number; h: number }>> = {
   pigeon: { w: 18, h: 14 },
   falcon: { w: 22, h: 16 },
   spike: { w: 16, h: 10 },
-  checkpoint: { w: 14, h: 30 },
   // Deliberately taller than any level: arriving off a spring used to sail
   // clean over the kennel and strand the player at the level's far wall. The
   // end of a level must be impossible to miss, however you arrive at it.
@@ -92,8 +91,6 @@ export interface Entity {
   facing: 1 | -1;
   /** Collected, bopped or broken. Taken entities are skipped and not drawn. */
   taken: boolean;
-  /** Checkpoints only: already activated. */
-  triggered: boolean;
   /** Falcons only: committed to a stoop. */
   diving: boolean;
   /** Falcons only: ticks of telegraph left before the stoop begins. */
@@ -119,7 +116,6 @@ export function createEntities(level: Level): Entity[] {
     t: 0,
     facing: -1,
     taken: false,
-    triggered: false,
     diving: false,
     windup: 0,
   }));
@@ -287,6 +283,11 @@ export function isEnemy(kind: EntityKind): boolean {
 /** Everything that patrols the air, and so must never be left over a pit. */
 export function isFlying(kind: EntityKind): boolean {
   return kind === 'flyer' || kind === 'pigeon' || kind === 'falcon';
+}
+
+/** What a kind is worth when bopped, as a multiple of the combo value. */
+export function enemyValue(kind: EntityKind): number {
+  return kind === 'falcon' ? 2 : 1;
 }
 
 /**

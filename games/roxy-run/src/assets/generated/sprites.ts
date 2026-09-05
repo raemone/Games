@@ -28,7 +28,7 @@ export interface Region {
   readonly h: number;
 }
 
-export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'star' | 'crate' | 'checkpoint' | 'checkpointLit' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB' | 'pigeonA' | 'pigeonB' | 'falconA' | 'falconB';
+export type PropName = 'bone' | 'spring' | 'springUp' | 'spike' | 'star' | 'crate' | 'goal' | 'walkerA' | 'walkerB' | 'flyerA' | 'flyerB' | 'pigeonA' | 'pigeonB' | 'falconA' | 'falconB';
 
 export const PROPS: Readonly<Record<PropName, Region>> = {
   bone: { x: 0, y: 0, w: 20, h: 11 },
@@ -37,15 +37,13 @@ export const PROPS: Readonly<Record<PropName, Region>> = {
   spike: { x: 55, y: 0, w: 16, h: 16 },
   star: { x: 72, y: 0, w: 16, h: 16 },
   crate: { x: 89, y: 0, w: 16, h: 16 },
-  checkpoint: { x: 106, y: 0, w: 16, h: 32 },
-  checkpointLit: { x: 123, y: 0, w: 16, h: 32 },
-  goal: { x: 140, y: 0, w: 32, h: 48 },
-  walkerA: { x: 173, y: 0, w: 24, h: 24 },
-  walkerB: { x: 198, y: 0, w: 24, h: 24 },
-  flyerA: { x: 223, y: 0, w: 24, h: 24 },
-  flyerB: { x: 0, y: 49, w: 24, h: 24 },
-  pigeonA: { x: 25, y: 49, w: 24, h: 24 },
-  pigeonB: { x: 50, y: 49, w: 24, h: 24 },
-  falconA: { x: 75, y: 49, w: 24, h: 24 },
-  falconB: { x: 100, y: 49, w: 24, h: 24 },
+  goal: { x: 106, y: 0, w: 32, h: 48 },
+  walkerA: { x: 139, y: 0, w: 24, h: 24 },
+  walkerB: { x: 164, y: 0, w: 24, h: 24 },
+  flyerA: { x: 189, y: 0, w: 24, h: 24 },
+  flyerB: { x: 214, y: 0, w: 24, h: 24 },
+  pigeonA: { x: 0, y: 49, w: 24, h: 24 },
+  pigeonB: { x: 25, y: 49, w: 24, h: 24 },
+  falconA: { x: 50, y: 49, w: 24, h: 24 },
+  falconB: { x: 75, y: 49, w: 24, h: 24 },
 };

@@ -10,7 +10,7 @@
  * Terrain: # solid  / rise 45  L fall 45  a,b rise 22.5  c,d fall 22.5
  *          _ half height  = one-way platform  - shallow lip
  * Things:  P spawn  G goal  o bone  * star  S spring  < > side springs
- *          ~ boost  E walker  V flyer  ^ spike  C checkpoint  X crate
+ *          ~ boost  E walker  V flyer  p pigeon  F falcon  ^ spike  X crate
  *          H,I moving platforms
  */
 
@@ -150,14 +150,20 @@ export const SEGMENTS = {
     '#########      #########',
   ]),
 
-  /** Spring up to a high shelf stacked with bones. */
+  /**
+   * Spring up to a shelf of bones, then step back down.
+   *
+   * The shelf used to end in a four-tile drop, and a running player reads that
+   * as a pit and jumps - an arc long enough to clear the next segment's bank
+   * and land in its hole. Coming down a tile at a time keeps her grounded.
+   */
   spring: seg([
     '                        ',
-    '           o o o o o    ',
-    '          ==========    ',
-    '                        ',
-    '                        ',
-    '     S              S   ',
+    '          o o o o       ',
+    '         ========       ',
+    '                 ==     ',
+    '                   ==   ',
+    '     S               == ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -237,27 +243,35 @@ export const SEGMENTS = {
     FLOOR,
   ]),
 
-  /** Two routes: a high road on platforms, a low road past an enemy. */
+  /** Two routes: a high road of stepped platforms, a low road past the ducks. */
   split: seg([
-    '     o o o o o          ',
-    '   ===========          ',
-    '                        ',
-    '              o  ====== ',
-    '     X  E      X     E  ',
+    '     o o o o            ',
+    '   ========             ',
+    '           ==           ',
+    '             ==     o   ',
+    '  X   E        ==     E ',
     FLOOR,
     FLOOR,
     FLOOR,
     FLOOR,
   ]),
 
-  /** Stepped climb. Deliberately slow - a breather between fast sections. */
+  /**
+   * An optional staircase of platforms carrying bones, over clear ground.
+   *
+   * Every step down is one tile. That matters more than it looks: a running
+   * player - and the bot in the tests - reads any drop taller than a stride as
+   * a pit and jumps it, and the leap off a three-tile ledge at a segment join
+   * carries clean over the next segment's bank and into whatever hole it
+   * starts with. Small steps keep her feet on the ground where it matters.
+   */
   climb: seg([
-    '                o o     ',
-    '             ______     ',
-    '          o             ',
-    '        ______          ',
-    '     o            E     ',
-    '  ______           X    ',
+    '        o o             ',
+    '                        ',
+    '     ======             ',
+    '           ===          ',
+    '              ===       ',
+    '   E             ===    ',
     FLOOR,
     FLOOR,
     FLOOR,
@@ -380,19 +394,6 @@ export const SEGMENTS = {
     '      o o o o o o       ',
     '                        ',
     '   X                 X  ',
-    FLOOR,
-    FLOOR,
-    FLOOR,
-    FLOOR,
-  ]),
-
-  /** Checkpoint. Always on flat ground so it cannot be missed. */
-  checkpoint: seg([
-    '                        ',
-    '                        ',
-    '                        ',
-    '                        ',
-    '          C             ',
     FLOOR,
     FLOOR,
     FLOOR,

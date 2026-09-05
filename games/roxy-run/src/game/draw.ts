@@ -266,9 +266,6 @@ export class WorldRenderer {
       case 'crate':
         this.sprites.drawPropCentred(ctx, 'crate', x, y);
         break;
-      case 'checkpoint':
-        this.sprites.drawProp(ctx, entity.triggered ? 'checkpointLit' : 'checkpoint', x, y + 15);
-        break;
       case 'goal':
         // Drawn at the kennel's own size; its trigger box is far taller.
         this.sprites.drawProp(ctx, 'goal', x, y + GOAL_ART_HALF_HEIGHT);

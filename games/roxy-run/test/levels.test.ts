@@ -8,6 +8,9 @@ import { flyingReach, isEnemy, isFlying } from '../src/game/entities';
 /** Clear ground a pit needs in front of it, so the jump can be built up to. */
 const RUN_UP = 140;
 
+/** How far the leap off an unexpected ledge carries. */
+const LEAP_REACH = 300;
+
 const CASES = LEVELS.map((level) => [level.id, level] as const);
 
 describe('level data', () => {
@@ -50,10 +53,19 @@ describe('level data', () => {
     expect(parsed.pixelWidth / 6 / 60).toBeLessThan(level.timeLimit);
   });
 
-  it.each(CASES)('%s has a checkpoint and plenty to collect', (_id, level) => {
+  it.each(CASES)('%s has plenty to collect along the way', (_id, level) => {
     const parsed = parseLevel(level);
-    expect(parsed.entities.some((e) => e.kind === 'checkpoint')).toBe(true);
-    expect(parsed.entities.filter((e) => e.kind === 'bone').length).toBeGreaterThan(10);
+    expect(parsed.entities.filter((e) => e.kind === 'bone').length).toBeGreaterThan(30);
+  });
+
+  /**
+   * There are no checkpoints, so a death costs the whole level. That makes the
+   * length a difficulty knob in its own right, and worth pinning down.
+   */
+  it.each(CASES)('%s is long, but finishable well inside its clock', (_id, level) => {
+    const parsed = parseLevel(level);
+    expect(parsed.pixelWidth).toBeGreaterThan(9000);
+    expect(parsed.pixelWidth / 6 / 60).toBeLessThan(level.timeLimit * 0.2);
   });
 });
 
@@ -135,6 +147,42 @@ describe('hazard placement', () => {
         expect(
           distance > 0 && distance < RUN_UP,
           `${level.id}: ${blocker.kind} at x=${blocker.x} is ${Math.round(distance)}px before the pit at x=${x}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  /**
+   * A ledge taller than a stride reads as a pit to anyone running at it, so
+   * they jump - and the arc off a three-tile drop is far longer than the jump
+   * they meant to make. Land that arc in a real pit and the level is
+   * unplayable through no fault of the player. This has now caused the same
+   * failure twice, from `slope` and then from `climb`, so it is pinned here.
+   */
+  it.each(CASES)('%s keeps big drops away from the pits', (_id, level) => {
+    const parsed = parseLevel(level);
+    const surfaceAt = (x: number): number | null =>
+      findFloor(parsed.map, x, 0, parsed.pixelHeight)?.y ?? null;
+
+    const ledges: number[] = [];
+    for (let x = TILE; x < parsed.pixelWidth - TILE; x += TILE) {
+      const here = surfaceAt(x);
+      const next = surfaceAt(x + TILE);
+      if (here === null || next === null) continue;
+      // Positive means the ground falls away as you run right.
+      if (next - here > TILE) ledges.push(x);
+    }
+
+    for (let x = TILE; x < parsed.pixelWidth - TILE; x += TILE) {
+      const solidHere = surfaceAt(x) !== null;
+      const pitNext = surfaceAt(x + TILE) === null;
+      if (!solidHere || !pitNext) continue;
+
+      for (const ledge of ledges) {
+        const gap = x - ledge;
+        expect(
+          gap > 0 && gap < LEAP_REACH,
+          `${level.id}: a drop at x=${ledge} is ${gap}px before the pit at x=${x}`,
         ).toBe(false);
       }
     }

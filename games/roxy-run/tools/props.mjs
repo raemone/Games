@@ -166,20 +166,6 @@ export function crate() {
   return finish(g);
 }
 
-/** Roxy's checkpoint: a dog bowl on a post. `lit` is the reached state. */
-export function checkpoint(lit) {
-  const g = new Grid(16, 32);
-  g.rect(6, 10, 4, 22, 'S');
-  g.ellipse(8, 9, 7, 4, lit ? 'R' : 'W');
-  g.ellipse(8, 8, 5.5, 3, lit ? 'T' : 'S');
-  if (lit) {
-    g.ellipse(8, 5, 2, 2, 'Y'); // a treat appears once it is hit
-    g.ellipse(4, 4, 1, 1, 'Y');
-    g.ellipse(12, 4, 1, 1, 'Y');
-  }
-  return finish(g);
-}
-
 /** The goal: a kennel with a flag on top. */
 export function goal() {
   const g = new Grid(32, 48);

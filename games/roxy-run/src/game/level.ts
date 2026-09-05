@@ -19,7 +19,6 @@ export type EntityKind =
   | 'pigeon'
   | 'falcon'
   | 'spike'
-  | 'checkpoint'
   | 'goal'
   | 'crate'
   | 'platformH'
@@ -40,7 +39,6 @@ export const ENTITY_CHARS: Readonly<Record<string, EntityKind>> = {
   p: 'pigeon',
   F: 'falcon',
   '^': 'spike',
-  C: 'checkpoint',
   G: 'goal',
   X: 'crate',
   H: 'platformH',

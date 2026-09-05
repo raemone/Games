@@ -57,10 +57,16 @@ export function collectBone(run: Run): boolean {
   return true;
 }
 
-/** Bop an enemy. Returns the points awarded so the game can show them. */
-export function bopEnemy(run: Run): number {
+/**
+ * Bop an enemy. Returns the points awarded so the game can show them.
+ *
+ * `multiplier` lets a tougher enemy pay more without giving it its own chain -
+ * the escalating 100/200/500/1000 is per airborne combo, not per kind.
+ */
+export function bopEnemy(run: Run, multiplier = 1): number {
   const index = Math.min(run.chain, SCORE.comboChain.length - 1);
-  const points = run.chain >= SCORE.comboChain.length ? SCORE.comboMax : SCORE.comboChain[index]!;
+  const base = run.chain >= SCORE.comboChain.length ? SCORE.comboMax : SCORE.comboChain[index]!;
+  const points = base * multiplier;
   run.chain += 1;
   run.score += points;
   return points;

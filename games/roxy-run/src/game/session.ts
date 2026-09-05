@@ -7,7 +7,17 @@ import { Camera } from '../engine/camera';
 import { findFloor } from './collision';
 import type { Audio } from '../engine/audio';
 import { PHYS, type Body, type PhysicsInput, createBody, launch, setRolling, step } from './physics';
-import { type Entity, boxOf, createEntities, isEnemy, overlaps, platformTop, updateEntity } from './entities';
+import {
+  type Entity,
+  boxOf,
+  createEntities,
+  enemyValue,
+  isEnemy,
+  isFlying,
+  overlaps,
+  platformTop,
+  updateEntity,
+} from './entities';
 import type { Level } from './level';
 import { type Run, bopEnemy, collectBone, finishLevel, resetChain, respawn, takeHit } from './scoring';
 import type { Theme } from './theme';
@@ -80,9 +90,6 @@ export class Session {
   invincible = 0;
   /** Counts down while dying, then respawns. */
   stateTimer = 0;
-  /** Where a respawn puts Roxy - moved by checkpoints. */
-  private checkpointX: number;
-  private checkpointY: number;
   /** Frames since the level started, for the clock. */
   private ticks = 0;
   /** Set once, so the goal cannot be scored twice. */
@@ -105,8 +112,6 @@ export class Session {
     this.entities = createEntities(level);
     this.camera = new Camera(level.pixelWidth, level.pixelHeight);
     this.camera.snapTo(this.body.x, this.body.y);
-    this.checkpointX = level.spawn.x;
-    this.checkpointY = level.spawn.y;
     this.chaseX = level.def.chase === undefined ? null : level.spawn.x - CHASE_HEAD_START;
   }
 
@@ -284,17 +289,9 @@ export class Session {
 
         case 'walker':
         case 'flyer':
+        case 'pigeon':
+        case 'falcon':
           this.hitEnemy(entity);
-          break;
-
-        case 'checkpoint':
-          if (!entity.triggered) {
-            entity.triggered = true;
-            this.checkpointX = entity.x;
-            this.checkpointY = entity.y - 8;
-            this.audio.play('checkpoint');
-            this.addPopup(entity.x, entity.y - 30, 'CHECKPOINT');
-          }
           break;
 
         case 'goal':
@@ -335,7 +332,13 @@ export class Session {
     if (!isEnemy(entity.kind)) return;
 
     const fromAbove = !this.body.grounded && this.body.ysp > 0 && this.body.y < entity.y - 4;
-    const attacking = fromAbove || this.body.rolling || this.invincible > 0;
+
+    // Birds die to any airborne hit, not only one from directly above. You have
+    // to leave the ground to reach one at all, and the stricter rule made a
+    // high perch unfightable and a falcon already stooping on you - which is
+    // above you by definition - impossible to answer.
+    const jumpedIntoBird = isFlying(entity.kind) && !this.body.grounded;
+    const attacking = fromAbove || jumpedIntoBird || this.body.rolling || this.invincible > 0;
 
     if (!attacking) {
       this.hurt(entity.x);
@@ -343,7 +346,7 @@ export class Session {
     }
 
     entity.taken = true;
-    const points = bopEnemy(this.run);
+    const points = bopEnemy(this.run, enemyValue(entity.kind));
     this.addPopup(entity.x, entity.y - 16, String(points));
     this.audio.play('bop');
     this.camera.addShake(2);
@@ -502,8 +505,8 @@ export class Session {
     respawn(this.run);
     this.invulnerable = INVULNERABLE_FRAMES / 2;
     this.invincible = 0;
-    this.body.x = this.checkpointX;
-    this.body.y = this.checkpointY;
+    this.body.x = this.level.spawn.x;
+    this.body.y = this.level.spawn.y;
     this.body.gsp = 0;
     this.body.xsp = 0;
     this.body.ysp = 0;
@@ -511,7 +514,7 @@ export class Session {
     this.body.angle = 0;
     this.camera.snapTo(this.body.x, this.body.y);
     this.loose.length = 0;
-    if (this.chaseX !== null) this.chaseX = this.checkpointX - CHASE_HEAD_START;
+    if (this.chaseX !== null) this.chaseX = this.level.spawn.x - CHASE_HEAD_START;
   }
 
   private timeUp(): void {
@@ -539,8 +542,6 @@ export class Session {
     this.loose.length = 0;
     this.popups.length = 0;
     this.invincible = 0;
-    this.checkpointX = this.level.spawn.x;
-    this.checkpointY = this.level.spawn.y;
     this.chaseX =
       this.level.def.chase === undefined ? null : this.level.spawn.x - CHASE_HEAD_START;
     respawn(this.run);
