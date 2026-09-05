@@ -371,8 +371,12 @@ export class Game {
   }
 
   private commitInitials(): void {
-    this.save = { ...this.save, initials: storage.cleanInitials(this.initialsChars.join('')) };
+    // Switches player as well as label: these initials get their own id, so
+    // the runs already on the board keep the name they were posted under.
+    this.save = storage.withInitials(this.save, this.initialsChars.join(''));
     storage.save(this.save);
+    // The last player's rank is not this one's.
+    this.standing = null;
     if (this.afterInitials === 'post') {
       this.postPending();
       return;

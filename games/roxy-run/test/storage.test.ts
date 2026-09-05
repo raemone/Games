@@ -4,6 +4,7 @@ import {
   type SaveData,
   cleanInitials,
   clear,
+  withInitials,
   defaultSave,
   load,
   migrate,
@@ -107,6 +108,66 @@ describe('the world board identity', () => {
     expect(migrate({ settings: { share: 'no' } }).settings.share).toBe('no');
     expect(migrate({ settings: { share: 'maybe' } }).settings.share).toBe('ask');
     expect(migrate({ settings: {} }).settings.share).toBe('ask');
+  });
+
+  it('gives each set of initials its own player', () => {
+    // The bug: one id per device meant a second child's initials renamed every
+    // score the first had posted, because every score is stored under the id.
+    const rae = withInitials(defaultSave(), 'RAE');
+    const max = withInitials(rae, 'MAX');
+
+    expect(max.initials).toBe('MAX');
+    expect(max.playerId).not.toBe(rae.playerId);
+    // RAE's id survives, so the runs posted under it keep RAE's name.
+    expect(max.players.RAE).toBe(rae.playerId);
+    expect(max.players.MAX).toBe(max.playerId);
+  });
+
+  it('hands the tablet back to a player who had it before', () => {
+    const rae = withInitials(defaultSave(), 'RAE');
+    const max = withInitials(rae, 'MAX');
+    const backToRae = withInitials(max, 'RAE');
+
+    // Same id as the first time, so this run adds to RAE's scores rather than
+    // starting a third player who happens to share the name.
+    expect(backToRae.playerId).toBe(rae.playerId);
+    expect(Object.keys(backToRae.players).sort()).toEqual(['MAX', 'RAE']);
+  });
+
+  it('gives the first player the id the device started with', () => {
+    // Nothing has been posted before initials are chosen, so the starting id
+    // belongs to nobody yet and the first player may as well keep it.
+    const fresh = defaultSave();
+    expect(withInitials(fresh, 'RAE').playerId).toBe(fresh.playerId);
+  });
+
+  it('survives a save written before players were separate', () => {
+    // A version 2 save has one id and one set of initials. That pairing is the
+    // first player; losing it would orphan every score already on the board.
+    const old = { playerId: 'a1b2c3d4e5f60718', initials: 'ROX' };
+    const upgraded = migrate(old);
+
+    expect(upgraded.players).toEqual({ ROX: 'a1b2c3d4e5f60718' });
+    expect(withInitials(upgraded, 'ROX').playerId).toBe('a1b2c3d4e5f60718');
+    expect(withInitials(upgraded, 'RAE').playerId).not.toBe('a1b2c3d4e5f60718');
+  });
+
+  it('keeps the roster through a save and load', () => {
+    const two = withInitials(withInitials(defaultSave(), 'RAE'), 'MAX');
+    expect(save(two)).toBe(true);
+    expect(load()).toEqual(two);
+  });
+
+  it('drops junk out of the roster rather than trusting it', () => {
+    const result = migrate({
+      players: { RAE: 'a1b2c3d4e5f60718', MAX: 'not-an-id', '': 'b1b2c3d4e5f60718', 5: 7 },
+    });
+    expect(result.players).toEqual({ RAE: 'a1b2c3d4e5f60718' });
+  });
+
+  it('ignores initials that clean away to nothing', () => {
+    const before = withInitials(defaultSave(), 'RAE');
+    expect(withInitials(before, '!!!')).toBe(before);
   });
 
   it('cleans initials to what the board can show', () => {
