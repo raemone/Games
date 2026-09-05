@@ -1,19 +1,26 @@
 /**
- * The board: GET to read one level's top runs, POST to add a run to it.
+ * The board: read one level's top runs, or add a run to it, and say whether
+ * anything is actually storing them.
  *
  * One resource, two verbs, because reading and writing the board are the same
  * thing seen from two sides and splitting them would only duplicate the
  * validation and the CORS handling.
  *
- * Both halves are thin on purpose - the rules live in `src/validate.ts` and the
- * storage in `src/store.ts`, which is what lets the whole API be tested by
- * calling these functions with a plain `Request`.
+ * Both halves are thin on purpose - the rules live in `validate.ts` and the
+ * storage in `store.ts`, which is what lets the whole API be tested by calling
+ * these functions with a plain `Request`.
+ *
+ * These are plain functions rather than the routes themselves. The routes are
+ * the files in `api/`, and each is deliberately little more than a try/catch
+ * around one of these: a function that fails to load is the one failure a
+ * handler cannot report on its own.
  */
-import { backend } from '../src/context';
-import { clientIp, error, json, preflight, readJson } from '../src/http';
-import { LEVELS, levelById } from '../src/levels';
-import type { Entry } from '../src/store';
-import { parseLimit, parseSubmission } from '../src/validate';
+import { backend } from './context.js';
+import { clientIp, error, json, preflight, readJson } from './http.js';
+import { LEVELS, levelById } from './levels.js';
+import { restVariablesPresent, storageVariablesPresent } from './redis.js';
+import type { Entry } from './store.js';
+import { parseLimit, parseSubmission } from './validate.js';
 
 /** How long the edge may hold a board. Long enough to matter, short enough to feel live. */
 const BOARD_CACHE_SECONDS = 10;
@@ -41,11 +48,11 @@ function rows(entries: readonly Entry[], playerId: string | null): Row[] {
   }));
 }
 
-export async function OPTIONS(request: Request): Promise<Response> {
+export async function boardOptions(request: Request): Promise<Response> {
   return preflight(request);
 }
 
-export async function GET(request: Request): Promise<Response> {
+export async function boardGet(request: Request): Promise<Response> {
   const origin = request.headers.get('origin');
   const url = new URL(request.url);
   const levelId = url.searchParams.get('level') ?? '';
@@ -88,7 +95,7 @@ export async function GET(request: Request): Promise<Response> {
   );
 }
 
-export async function POST(request: Request): Promise<Response> {
+export async function boardPost(request: Request): Promise<Response> {
   const origin = request.headers.get('origin');
   const parsed = parseSubmission(await readJson(request));
   if (!parsed.ok) return error(parsed.error, 400, origin);
@@ -120,5 +127,56 @@ export async function POST(request: Request): Promise<Response> {
         : null,
     },
     { origin },
+  );
+}
+
+/** What running on the memory store costs, said the same way every time. */
+const MEMORY_COST = 'Scores are kept in memory and lost when the function restarts.';
+
+/**
+ * Why there is no database, in the terms of the fix it needs.
+ *
+ * Three causes that look identical from the game's side and want completely
+ * different things done about them.
+ */
+function causeOfMemory(restVariables: readonly string[], storageVariables: readonly string[]): string {
+  if (restVariables.length > 0) {
+    return 'Some REST variables are set but not a complete URL and token pair, so the store is half configured.';
+  }
+  if (storageVariables.length > 0) {
+    return 'A store is attached - the variables above are set - but none of them is a REST pair or a usable redis:// URL, so there is nothing here to connect to.';
+  }
+  return 'No store variable of any kind reached this function. If one is attached, it is most likely scoped to a different environment than this deployment.';
+}
+
+/**
+ * Is the board actually storing anything?
+ *
+ * Worth its own route: with no database attached the API answers every request
+ * perfectly happily and forgets each one, which from the game's side looks
+ * identical to nobody having played yet. This is how you tell the difference
+ * without reaching for the dashboard.
+ */
+export async function healthGet(request: Request): Promise<Response> {
+  const { persistent, transport } = backend();
+  const seen = restVariablesPresent();
+  const storageVariablesSeen = storageVariablesPresent();
+
+  return json(
+    {
+      ok: true,
+      storage: persistent ? 'redis' : 'memory',
+      // Which way it is reached, because the two fail differently: REST on a
+      // bad token, a socket on a firewall or an expired certificate.
+      transport,
+      // Names only, never values: this route is unauthenticated.
+      restVariablesSeen: seen,
+      storageVariablesSeen,
+      // Two sentences whenever there is no database: what it costs, and why.
+      // The consequence is the same every time - scores do not survive - but
+      // the cause decides the fix, and they are not guessable from each other.
+      note: persistent ? undefined : `${MEMORY_COST} ${causeOfMemory(seen, storageVariablesSeen)}`,
+    },
+    { origin: request.headers.get('origin') },
   );
 }

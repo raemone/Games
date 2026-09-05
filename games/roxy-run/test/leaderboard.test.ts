@@ -4,7 +4,7 @@
  * a bad answer from the network becomes null, not an exception.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { boardEnabled, fetchBoard, postRun } from '../src/engine/leaderboard';
+import { boardEnabled, fetchBoard, postRun, resolveBase } from '../src/engine/leaderboard';
 
 const PLAYER = '0123456789abcdef';
 
@@ -47,6 +47,26 @@ describe('boardEnabled', () => {
     // vite.config.ts sets VITE_LEADERBOARD_URL for the test run; without it
     // every call below would short-circuit and prove nothing.
     expect(boardEnabled()).toBe(true);
+  });
+});
+
+describe('resolveBase', () => {
+  it('falls back to the family board when nothing is configured', () => {
+    // CI passes an unset repository variable through as an empty string, so
+    // this is the case that decides whether a normal build has a board at all.
+    expect(resolveBase('')).toBe('https://roxy-run.vercel.app');
+    expect(resolveBase(undefined)).toBe('https://roxy-run.vercel.app');
+    expect(resolveBase('   ')).toBe('https://roxy-run.vercel.app');
+  });
+
+  it('takes a configured URL over the default, without a trailing slash', () => {
+    expect(resolveBase('https://board.test')).toBe('https://board.test');
+    expect(resolveBase('https://board.test/')).toBe('https://board.test');
+  });
+
+  it('switches the board off entirely for a fork that wants none', () => {
+    expect(resolveBase('off')).toBe('');
+    expect(resolveBase('OFF')).toBe('');
   });
 });
 

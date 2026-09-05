@@ -4,8 +4,9 @@ Small browser games, deployed to GitHub Pages on every push to `main`.
 
 **Play:** https://raemone.github.io/Games/
 
-One of them has a backend: Roxy Run's world board runs as Vercel functions in
-[`server/`](server/). Everything else is static and stays that way.
+One of them has a backend: Roxy Run's world board runs as Vercel functions,
+which deploy from the game's own directory. Everything else is static and stays
+that way.
 
 ---
 
@@ -50,7 +51,9 @@ games/roxy-run/
   src/engine/     loop, renderer, input, audio, camera, save, world board
   src/game/       physics, collision, entities, scoring, drawing, screens
   src/levels/     ASCII level segments and the nine level definitions
-  tools/          the art pipeline: pixel data in, PNGs out
+  api/            the leaderboard's two Vercel functions
+  server/         what those functions are made of - rules, storage, CORS
+  tools/          the art pipeline, and a local runner for the API
 ```
 
 The interesting parts are `src/game/collision.ts` (tile height masks, so ramps
@@ -66,11 +69,13 @@ npm run dev      # local dev server
 npm test         # unit tests and level playthroughs
 npm run build    # type-check and production build
 npm run art      # regenerate the sprite PNGs from tools/
+npm run serve    # the leaderboard API on localhost, no Vercel CLI needed
 ```
 
-The world board is off unless `VITE_LEADERBOARD_URL` points at one. To develop
-against a local board, run `npm run serve` in `server/` and start the game with
-`VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev`.
+The world board points at the deployed API by default. To develop against a
+local one, run `npm run serve` in another terminal and start the game with
+`VITE_LEADERBOARD_URL=http://localhost:3001 npm run dev`; use
+`VITE_LEADERBOARD_URL=off` to build with no board at all.
 
 Levels are ASCII art. `src/levels/segments.ts` holds reusable 24x20 tile chunks
 and `src/levels/index.ts` lists which chunks each level is made of, so a new
@@ -86,7 +91,14 @@ every frame.
 
 Every level has a global top ten, open from the level select screen. It is the
 one part of this repository with a backend: a Vercel function and a Redis
-sorted set, in [`server/`](server/), which has its own README.
+sorted set, in `api/` and `server/` inside the game's own directory, documented
+in [API.md](games/roxy-run/API.md). It reaches Redis over REST or over a
+socket, whichever the attached database offers.
+
+They live in the game's directory because that is the directory Vercel deploys:
+the same project serves the game and its API, which means one deployment rather
+than two, and lets the server validate against the game's real level table
+instead of a copy that could drift.
 
 A run is posted as a score, a time and up to three characters. No name, no
 account, no email — initials are the arcade convention this game is already
@@ -101,17 +113,18 @@ something concrete rather than a settings toggle nobody reads — and remembers
 the answer. Answer no and the game never mentions it again; both the answer and
 the initials can be changed from the board screen afterwards.
 
-Everything about it is optional at every level. The board URL is a build-time
-variable, so a build without it has no board at all and no code path that tries;
-a request that fails, times out or comes back malformed becomes "could not reach
-the board" rather than an error, and the game never waits for the network to
-show a result. The results panel appears the moment a level ends, and the rank
+Everything about it degrades rather than breaks. A request that fails, times out
+or comes back malformed becomes "could not reach the board" rather than an
+error, and the game never waits for the network to show a result. The board it
+talks to is the default, so the feature works out of the box;
+`VITE_LEADERBOARD_URL` points a build at a different one, and `off` builds a
+game with no board at all and no code path that tries. The results panel appears the moment a level ends, and the rank
 arrives a second later if it arrives.
 
 What stops someone posting a score they never earned is worth being straight
 about: plausibility checks and rate limits, not proof. The
-[server README](server/README.md) says exactly what is enforced and what it
-would take to do better.
+[API.md](games/roxy-run/API.md) says exactly what is enforced and what it would
+take to do better.
 
 ### Saving
 

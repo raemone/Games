@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SCORE, MIN_TIME_MS, normalizeInitials, parseLimit, parseSubmission } from '../src/validate';
+import { MAX_SCORE, MIN_TIME_MS, normalizeInitials, parseLimit, parseSubmission } from '../../server/validate';
 
 const GOOD = {
   levelId: 'w1-1',

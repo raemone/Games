@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { MemoryStore, bestFirst } from '../src/store';
+import { MemoryStore, bestFirst } from '../../server/store';
 
 const entry = (playerId: string, score: number, timeMs: number, initials = 'AAA') => ({
   playerId,

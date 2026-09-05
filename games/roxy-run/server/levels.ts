@@ -1,14 +1,15 @@
 /**
- * What the server knows about the nine levels.
+ * What the API knows about the nine levels.
  *
- * This is deliberately a copy of the game's own level table rather than an
- * import: the deployed function is built from this directory alone, so it
- * cannot reach into `games/roxy-run/`. `test/levels.test.ts` imports the real
- * table and fails the build if the two ever drift apart.
+ * A deliberate copy of the game's own table rather than an import of it. The
+ * functions are bundled and shipped on their own, and reaching sideways into
+ * `src/` to read one number per level drags the game's module graph into that
+ * bundle - which is both more to go wrong at deploy time and more to load on
+ * every cold start.
  *
- * The server needs the ids to reject boards that do not exist, and the time
- * limits to reject a run that claims to have taken longer than the level
- * allows - a client is never trusted to police itself.
+ * `test/server/levels.test.ts` imports the real table and fails the build if
+ * the two ever disagree, so the copy cannot rot. Tests are not deployed, so
+ * that import costs the function nothing.
  */
 
 export interface ServerLevel {

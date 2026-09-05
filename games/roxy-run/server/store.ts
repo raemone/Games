@@ -9,7 +9,7 @@
  * out boards that empty themselves. The API says so in its health response
  * rather than pretending otherwise.
  */
-import { type RedisConfig, command, pipeline } from './redis';
+import type { Redis } from './protocol.js';
 
 export interface Entry {
   readonly playerId: string;
@@ -65,7 +65,7 @@ export function bestFirst(a: Entry, b: Entry): number {
 }
 
 export class RedisStore implements Store {
-  constructor(private readonly config: RedisConfig) {}
+  constructor(private readonly redis: Redis) {}
 
   /**
    * GT and LT replace an existing member only when the new value is better, so
@@ -73,7 +73,7 @@ export class RedisStore implements Store {
    * and a write from here - which two tablets finishing at once would race.
    */
   async submit(levelId: string, entry: Entry): Promise<void> {
-    await pipeline(this.config, [
+    await this.redis.pipeline([
       ['ZADD', scoreKey(levelId), 'GT', 'CH', entry.score, entry.playerId],
       ['ZADD', timeKey(levelId), 'LT', 'CH', entry.timeMs, entry.playerId],
       ['HSET', NAMES_KEY, entry.playerId, entry.initials],
@@ -81,7 +81,7 @@ export class RedisStore implements Store {
   }
 
   async top(levelId: string, limit: number): Promise<Entry[]> {
-    const raw = await command(this.config, ['ZRANGE', scoreKey(levelId), 0, limit - 1, 'REV', 'WITHSCORES']);
+    const raw = await this.redis.command(['ZRANGE', scoreKey(levelId), 0, limit - 1, 'REV', 'WITHSCORES']);
     const flat = Array.isArray(raw) ? raw : [];
     if (flat.length === 0) return [];
 
@@ -93,7 +93,7 @@ export class RedisStore implements Store {
       scores.set(id, num(flat[i + 1]));
     }
 
-    const [names, times] = await pipeline(this.config, [
+    const [names, times] = await this.redis.pipeline([
       ['HMGET', NAMES_KEY, ...ids],
       ['ZMSCORE', timeKey(levelId), ...ids],
     ]);
@@ -111,7 +111,7 @@ export class RedisStore implements Store {
   }
 
   async standing(levelId: string, playerId: string): Promise<Standing | null> {
-    const [rank, score, time, name] = await pipeline(this.config, [
+    const [rank, score, time, name] = await this.redis.pipeline([
       ['ZREVRANK', scoreKey(levelId), playerId],
       ['ZSCORE', scoreKey(levelId), playerId],
       ['ZSCORE', timeKey(levelId), playerId],
@@ -134,7 +134,7 @@ export class RedisStore implements Store {
   }
 
   async count(levelId: string): Promise<number> {
-    return num(await command(this.config, ['ZCARD', scoreKey(levelId)]));
+    return num(await this.redis.command(['ZCARD', scoreKey(levelId)]));
   }
 
   /**
@@ -145,7 +145,7 @@ export class RedisStore implements Store {
   async allow(key: string, limit: number, windowSeconds: number): Promise<boolean> {
     const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
     const full = `${PREFIX}:rl:${key}:${bucket}`;
-    const [count] = await pipeline(this.config, [
+    const [count] = await this.redis.pipeline([
       ['INCR', full],
       ['EXPIRE', full, windowSeconds],
     ]);
