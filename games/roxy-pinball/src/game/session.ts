@@ -29,6 +29,7 @@ import {
   FLIPPER_ACTIVE_ANGLE,
   FLIPPER_LEFT_PIVOT,
   FLIPPER_LENGTH,
+  FLIPPER_RADIUS,
   FLIPPER_REST_ANGLE,
   FLIPPER_RIGHT_PIVOT,
   HABITRAIL_RIGHT_EXIT,
@@ -116,12 +117,19 @@ export class Session {
 
   constructor(private readonly audio: Audio) {
     this.flippers = [
-      makeFlipper(FLIPPER_LEFT_PIVOT, FLIPPER_LENGTH, FLIPPER_REST_ANGLE, FLIPPER_ACTIVE_ANGLE),
+      makeFlipper(
+        FLIPPER_LEFT_PIVOT,
+        FLIPPER_LENGTH,
+        FLIPPER_REST_ANGLE,
+        FLIPPER_ACTIVE_ANGLE,
+        FLIPPER_RADIUS,
+      ),
       makeFlipper(
         FLIPPER_RIGHT_PIVOT,
         FLIPPER_LENGTH,
         Math.PI - FLIPPER_REST_ANGLE,
         Math.PI - FLIPPER_ACTIVE_ANGLE,
+        FLIPPER_RADIUS,
       ),
     ];
     this.statics = staticColliders();

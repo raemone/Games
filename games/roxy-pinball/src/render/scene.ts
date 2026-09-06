@@ -15,7 +15,6 @@ import {
   AdditiveBlending,
   BoxGeometry,
   CanvasTexture,
-  CapsuleGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
@@ -58,6 +57,7 @@ import {
   DOGHOUSE,
   DROP_TARGETS,
   FLIPPER_LENGTH,
+  FLIPPER_RADIUS,
   PLUNGER_REST,
   SQUIRREL,
   TABLE_HEIGHT,
@@ -88,6 +88,28 @@ const CAMERA_FOV = 40;
 const FORESHORTENING = 0.82;
 
 const scratch = new Object3D();
+
+/**
+ * The direction the flipper bat's geometry points before it is rotated. The
+ * shape is drawn lying in its own xy plane running along +x, so this is +x.
+ */
+export const FLIPPER_MODEL_AXIS = new Vector3(1, 0, 0);
+
+/**
+ * The Euler angles, in YXZ order, that lay a flipper bat flat on the playfield
+ * and turn it to the angle the physics is holding it at.
+ *
+ * Pulled out as a function so it can be checked without a GPU. The first
+ * version of this was a quarter turn out: the bats were drawn across the lane
+ * the ball travels down rather than along it, so the ball rebounded off a
+ * flipper that was visibly somewhere else. Nothing caught it, because nothing
+ * tested it - the physics was right the whole time and only the picture lied.
+ */
+export function flipperRotation(angle: number): [number, number, number] {
+  // Table space measures the angle from +x with y running down the table;
+  // world space has that same heading as a negative turn about the up axis.
+  return [-Math.PI / 2, -angle, 0];
+}
 
 /** Table coordinates, plus a height, into world space. */
 function place(target: Object3D, x: number, y: number, height = 0): void {
@@ -377,14 +399,41 @@ export class TableScene {
     this.table.add(this.doghouseLamp);
   }
 
+  /**
+   * A flipper bat, built as its own collision footprint extruded upwards.
+   *
+   * The physics flipper is a capsule: the segment from pivot to tip, swept by
+   * FLIPPER_RADIUS. Seen from above that is a stadium - a half circle at each
+   * end joined by two tangents - and this traces exactly that, so the outline
+   * on screen is the outline the ball hits. A real bat tapers towards the tip
+   * and this deliberately does not: a taper would draw the flipper narrower
+   * than the thing the ball bounces off, and a ball rebounding off clear air
+   * beside the tip is worse than a slightly chunky flipper.
+   *
+   * The extrusion gives two material groups - the flat faces and the side wall
+   * - which is what makes it read as a flipper rather than a lozenge: a gold
+   * top, and a dark rubber edge all the way round the part the ball strikes.
+   */
   private buildFlippers(): void {
+    const shape = new Shape();
+    shape.absarc(0, 0, FLIPPER_RADIUS, Math.PI / 2, Math.PI * 1.5, false);
+    shape.lineTo(FLIPPER_LENGTH, -FLIPPER_RADIUS);
+    shape.absarc(FLIPPER_LENGTH, 0, FLIPPER_RADIUS, -Math.PI / 2, Math.PI / 2, false);
+    shape.closePath();
+
+    const geometry = new ExtrudeGeometry(shape, { depth: 15, bevelEnabled: false });
+    const face = new MeshStandardMaterial({
+      color: PALETTE.gold,
+      roughness: 0.3,
+      metalness: 0.35,
+    });
+    const rubber = new MeshStandardMaterial({ color: 0x2a1a2e, roughness: 0.85 });
+
     for (let i = 0; i < 2; i++) {
-      const flipper = new Mesh(
-        new CapsuleGeometry(7, FLIPPER_LENGTH, 6, 14),
-        new MeshStandardMaterial({ color: PALETTE.gold, roughness: 0.35, metalness: 0.25 }),
-      );
-      // A capsule stands up its own y axis; the flipper lies flat and points
-      // along the table, so it is tipped over before it is ever swung.
+      const flipper = new Mesh(geometry, [face, rubber]);
+      // The shape is drawn lying in its own xy plane pointing along +x, so it
+      // is tipped flat once here and only ever spun about the table's up axis
+      // after that.
       flipper.rotation.order = 'YXZ';
       flipper.castShadow = true;
       this.table.add(flipper);
@@ -549,10 +598,10 @@ export class TableScene {
     session.flippers.forEach((flipper, index) => {
       const mesh = this.flippers[index];
       if (!mesh) return;
-      const midX = flipper.pivot.x + (Math.cos(flipper.angle) * FLIPPER_LENGTH) / 2;
-      const midY = flipper.pivot.y + (Math.sin(flipper.angle) * FLIPPER_LENGTH) / 2;
-      place(mesh, midX, midY, 8);
-      mesh.rotation.set(Math.PI / 2, -flipper.angle, 0);
+      // The bat is modelled from its pivot outwards, so it is placed on the
+      // pivot and turned, rather than centred and turned.
+      place(mesh, flipper.pivot.x, flipper.pivot.y, 2);
+      mesh.rotation.set(...flipperRotation(flipper.angle));
     });
   }
 
