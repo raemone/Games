@@ -6,3 +6,7 @@ _site/
 Thumbs.db
 .vite/
 coverage/
+
+# Written by the pinball table's offline preview tools; never committed.
+table-preview.png
+sim.png
