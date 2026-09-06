@@ -51,6 +51,44 @@ const PAD_JUMP = [0, 1, 2, 3];
 const PAD_PAUSE = [9];
 const PAD_DEADZONE = 0.4;
 
+/**
+ * Where the four touch buttons go.
+ *
+ * Small, and pushed down as far as the home indicator allows. Thumbs rest at
+ * the bottom corners of a phone held sideways, so a pad any higher is both
+ * further to reach and sitting on top of the game. The circles stay well above
+ * the 44px a thumb needs, and the hit radius when one is pressed is wider again.
+ *
+ * `mirrored` swaps the pad and the action buttons, for a left-handed player.
+ */
+export function padButtons(layout: Layout, mirrored: boolean): TouchButton[] {
+  const base = clamp(Math.min(layout.width, layout.height) * 0.085, 30, 58);
+  const gap = base * 0.5;
+  const jumpRadius = base * 1.2;
+  const rollRadius = base * 0.8;
+  // Held sideways, a notched phone eats one edge and the home indicator the
+  // bottom; a jump button under either is a button that does not work.
+  const bottom = layout.height - base * 0.3 - layout.insets.bottom;
+  const leftEdge = base * 0.5 + layout.insets.left;
+  const rightEdge = layout.width - base * 0.5 - layout.insets.right;
+
+  const padSide = mirrored ? rightEdge : leftEdge;
+  const actSide = mirrored ? leftEdge : rightEdge;
+  const dir = mirrored ? -1 : 1;
+
+  return [
+    { id: 'left', x: padSide + dir * base, y: bottom - base, radius: base },
+    { id: 'right', x: padSide + dir * (base * 3 + gap), y: bottom - base, radius: base },
+    { id: 'jump', x: actSide - dir * jumpRadius, y: bottom - jumpRadius, radius: jumpRadius },
+    {
+      id: 'down',
+      x: actSide - dir * (jumpRadius * 2 + gap + rollRadius),
+      y: bottom - rollRadius,
+      radius: rollRadius,
+    },
+  ];
+}
+
 export class Input {
   /** True once the player has actually touched the screen. */
   touchActive = false;
@@ -112,32 +150,7 @@ export class Input {
 
   /** Recompute the touch button positions. Call whenever the window resizes. */
   layout(layout: Layout): void {
-    const base = clamp(Math.min(layout.width, layout.height) * 0.12, 40, 84);
-    const margin = base * 0.75;
-    const gap = base * 0.5;
-    const jumpRadius = base * 1.2;
-    const rollRadius = base * 0.8;
-    // Held sideways, a notched phone eats one edge and the home indicator the
-    // bottom; a jump button under either is a button that does not work.
-    const bottom = layout.height - margin - layout.insets.bottom;
-    const leftEdge = margin + layout.insets.left;
-    const rightEdge = layout.width - margin - layout.insets.right;
-
-    const padSide = this.mirrored ? rightEdge : leftEdge;
-    const actSide = this.mirrored ? leftEdge : rightEdge;
-    const dir = this.mirrored ? -1 : 1;
-
-    this.buttons = [
-      { id: 'left', x: padSide + dir * base, y: bottom - base, radius: base },
-      { id: 'right', x: padSide + dir * (base * 3 + gap), y: bottom - base, radius: base },
-      { id: 'jump', x: actSide - dir * jumpRadius, y: bottom - jumpRadius, radius: jumpRadius },
-      {
-        id: 'down',
-        x: actSide - dir * (jumpRadius * 2 + gap + rollRadius),
-        y: bottom - rollRadius,
-        radius: rollRadius,
-      },
-    ];
+    this.buttons = padButtons(layout, this.mirrored);
   }
 
   get touchButtons(): readonly TouchButton[] {
