@@ -18,7 +18,7 @@ import {
 } from '../engine/leaderboard';
 import { LEVELS, WORLD_COUNT, nextLevel } from '../levels';
 import { type BoardStatus, boardFrame, drawBoard, drawInitials, stepCharacter } from './board';
-import { drawHud, drawOverlay, drawTouchControls } from './hud';
+import { drawHud, drawOverlay, drawTouchControls, type OverlayOptions, overlayFrame } from './hud';
 import { type LevelDef, parseLevel } from './level';
 import { createRun, formatScore, formatTime, type Run } from './scoring';
 import { type TitleBoard, drawLevelSelect, drawTitle, hitHotspot, type Hotspot } from './screens';
@@ -789,15 +789,23 @@ export class Game {
     const layout = this.renderer.layout;
     const ctx = this.renderer.screen;
     const level = LEVELS[this.levelIndex];
-    const buttonRow = layout.height * 0.78;
+
+    // Panel and buttons come out of one frame, so a recap that has gained a
+    // line pushes the row down rather than hiding behind it.
+    const panel = (
+      options: OverlayOptions,
+      labels: readonly { readonly id: string; readonly text: string }[],
+      focused: string | null,
+    ): UiButton[] => {
+      const withRow = { ...options, buttons: true };
+      drawOverlay(ctx, layout, withRow, this.tick);
+      return drawButtonRow(ctx, layout, overlayFrame(layout, withRow).buttonsY, labels, focused);
+    };
 
     switch (this.screen) {
       case 'paused':
-        drawOverlay(ctx, layout, { title: 'PAUSED' }, this.tick);
-        return drawButtonRow(
-          ctx,
-          layout,
-          buttonRow,
+        return panel(
+          { title: 'PAUSED' },
           [
             { id: 'resume', text: 'Keep going' },
             { id: 'restart', text: 'Start level again' },
@@ -807,9 +815,7 @@ export class Game {
         );
 
       case 'askShare':
-        drawOverlay(
-          ctx,
-          layout,
+        return panel(
           {
             title: 'Join the world board?',
             lines: [
@@ -818,12 +824,6 @@ export class Game {
               'No name, no account, nothing else.',
             ],
           },
-          this.tick,
-        );
-        return drawButtonRow(
-          ctx,
-          layout,
-          buttonRow,
           [
             { id: 'shareNo', text: 'No thanks' },
             { id: 'shareYes', text: 'Yes, post it' },
@@ -832,9 +832,7 @@ export class Game {
         );
 
       case 'complete':
-        drawOverlay(
-          ctx,
-          layout,
+        return panel(
           {
             title: 'GOOD DOG!',
             lines: [
@@ -853,12 +851,6 @@ export class Game {
               ...(this.standing ? [`World rank #${this.standing.rank}`] : []),
             ],
           },
-          this.tick,
-        );
-        return drawButtonRow(
-          ctx,
-          layout,
-          buttonRow,
           [
             { id: 'next', text: nextLevel(level?.id ?? '') ? 'Next level' : 'Continue' },
             { id: 'levels', text: 'Levels' },
@@ -867,19 +859,11 @@ export class Game {
         );
 
       case 'gameOver':
-        drawOverlay(
-          ctx,
-          layout,
+        return panel(
           {
             title: 'OH NO',
             lines: ['Roxy is out of lives.', `Score ${formatScore(this.run.score)}`],
           },
-          this.tick,
-        );
-        return drawButtonRow(
-          ctx,
-          layout,
-          buttonRow,
           [
             { id: 'retry', text: 'Try again' },
             { id: 'levels', text: 'Levels' },
@@ -888,9 +872,7 @@ export class Game {
         );
 
       case 'finished':
-        drawOverlay(
-          ctx,
-          layout,
+        return panel(
           {
             title: 'YOU DID IT!',
             lines: [
@@ -899,9 +881,9 @@ export class Game {
               `Bones collected in all ${this.save.totalBones}`,
             ],
           },
-          this.tick,
+          [{ id: 'levels', text: 'Choose a level' }],
+          'levels',
         );
-        return drawButtonRow(ctx, layout, buttonRow, [{ id: 'levels', text: 'Choose a level' }], 'levels');
 
       default:
         break;
