@@ -12,8 +12,9 @@ import type { Input, InputState } from '../engine/input';
 import type { Renderer } from '../engine/renderer';
 import type { SaveData } from '../engine/storage';
 import { load, rankOf, recordGame, save as persist, today } from '../engine/storage';
-import { drawTable } from './draw';
-import { drawBanner, drawControls, drawHud, hitHudButton } from './hud';
+import { TableScene } from '../render/scene';
+import { APRON_HEIGHT } from './hud';
+import { drawApron, drawBanner, drawControls, drawHud, hitHudButton } from './hud';
 import {
   attractButtons,
   drawAttract,
@@ -25,7 +26,6 @@ import {
 } from './screens';
 import { Session } from './session';
 import { flipperTip } from './physics';
-import { PALETTE } from './theme';
 
 type Screen = 'attract' | 'playing' | 'paused' | 'gameOver';
 
@@ -50,6 +50,7 @@ export class Game {
   private data: SaveData;
   private tick = 0;
   private rank = -1;
+  private readonly scene: TableScene;
 
   constructor(
     private readonly renderer: Renderer,
@@ -59,11 +60,22 @@ export class Game {
     this.data = load();
     this.audio.setMuted(this.data.settings.muted);
     this.session = new Session(audio);
+    this.scene = new TableScene(renderer.tableCanvas);
   }
 
   resize(): void {
     this.renderer.resize();
     this.input.layout(this.renderer.layout);
+    const layout = this.renderer.layout;
+    this.scene.resize(
+      layout.width,
+      layout.height,
+      this.renderer.pixelRatio,
+      layout.hudHeight,
+      // The apron sits above the button strip and is opaque, so the table has
+      // to clear it too or its own bottom edge is hidden behind the hint text.
+      layout.barHeight + APRON_HEIGHT,
+    );
   }
 
   update(): void {
@@ -213,19 +225,13 @@ export class Game {
     const ctx = this.renderer.ctx;
     const layout = this.renderer.layout;
 
-    this.renderer.beginScreen();
-    ctx.fillStyle = PALETTE.space;
-    ctx.fillRect(0, 0, layout.width, layout.height);
-
-    this.renderer.beginTable();
-    ctx.save();
-    if (this.screen === 'attract') ctx.globalAlpha = 0.75;
-    drawTable(ctx, this.session, this.tick);
-    ctx.restore();
+    this.scene.sync(this.session, this.tick);
+    this.scene.render();
 
     this.renderer.beginScreen();
     if (this.screen !== 'attract') {
       drawHud(ctx, layout, this.session, this.data.settings.muted);
+      drawApron(ctx, layout, this.session);
       drawControls(ctx, layout, this.input, this.session);
       drawBanner(ctx, layout, this.session);
     }

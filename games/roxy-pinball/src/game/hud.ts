@@ -7,7 +7,7 @@ import type { Layout } from '../engine/renderer';
 import type { Input } from '../engine/input';
 import type { Session } from './session';
 import { PALETTE, dim } from './theme';
-import { MISSIONS } from './missions';
+import { MISSIONS, missionById } from './missions';
 import { formatScore } from './scoring';
 import { drawRoxy } from './roxy';
 
@@ -178,6 +178,65 @@ export function drawBanner(
     ctx.fillStyle = PALETTE.ink;
     ctx.font = '14px system-ui, sans-serif';
     ctx.fillText(banner.detail, centreX, y + 16);
+  }
+  ctx.restore();
+}
+
+/**
+ * The apron: the strip a real table carries its instruction card on. It sits
+ * just above the buttons and says the one thing a new player most needs told -
+ * what to shoot next - plus how the running mission is going.
+ *
+ * On a real table this is painted on the metal below the flippers. Here it is
+ * drawn on the overlay rather than into the playfield texture, because the text
+ * changes every few seconds and a texture that changes is a texture uploaded to
+ * the GPU sixty times a second.
+ */
+export const APRON_HEIGHT = 52;
+
+export function drawApron(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  session: Session,
+): void {
+  const height = APRON_HEIGHT - 6;
+  const y = layout.height - layout.barHeight - height - 6;
+  const x = layout.contentLeft;
+  const width = layout.contentWidth;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(7, 4, 15, 0.72)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, 12);
+  ctx.fill();
+  ctx.strokeStyle = dim(PALETTE.rail, 0.6);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  drawRoxy(ctx, x + 26, y + height / 2, 30, { squint: 0.9, tongue: 0.7, tilt: -0.12 });
+
+  const active = session.missions.active;
+  const hint = active
+    ? missionById(active.id).hint
+    : session.missions.wizardLit
+      ? 'Shoot the doghouse for Best in Show'
+      : `Shoot the doghouse to start ${missionById(session.missions.selected).name}`;
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText(hint, x + 50, y + (active ? 15 : height / 2));
+
+  if (active) {
+    const definition = missionById(active.id);
+    ctx.fillStyle = PALETTE.gold;
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.fillText(
+      `${definition.name}  ${active.progress}/${active.goal}  ${Math.ceil(active.ticksLeft / 60)}s`,
+      x + 50,
+      y + 33,
+    );
   }
   ctx.restore();
 }
