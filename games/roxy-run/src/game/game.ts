@@ -17,7 +17,7 @@ import {
   postRun,
 } from '../engine/leaderboard';
 import { LEVELS, WORLD_COUNT, nextLevel } from '../levels';
-import { type BoardStatus, drawBoard, drawInitials, stepCharacter } from './board';
+import { type BoardStatus, boardFrame, drawBoard, drawInitials, stepCharacter } from './board';
 import { drawHud, drawOverlay, drawTouchControls } from './hud';
 import { type LevelDef, parseLevel } from './level';
 import { createRun, formatScore, formatTime, type Run } from './scoring';
@@ -720,16 +720,20 @@ export class Game {
     const ctx = this.renderer.screen;
     const level = LEVELS[this.levelIndex];
 
-    drawBoard(ctx, layout, {
+    const view = {
       levelName: level?.name ?? '',
       status: this.boardStatus,
       board: this.board,
-    });
+    };
+    // One frame for both: what is drawn and what is tappable come out of the
+    // same numbers, so they cannot drift apart.
+    const frame = boardFrame(layout, view);
+    drawBoard(ctx, layout, view, frame);
 
     const row = drawButtonRow(
       ctx,
       layout,
-      layout.height * 0.82,
+      frame.buttonsY,
       [
         { id: 'boardPrev', text: '<' },
         { id: 'levels', text: 'Back' },

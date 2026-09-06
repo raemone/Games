@@ -12,7 +12,7 @@
  * knowing about an eight-year-old.
  */
 import type { Layout } from '../engine/renderer';
-import type { Board } from '../engine/leaderboard';
+import type { Board, BoardRow } from '../engine/leaderboard';
 import { formatScore, formatTime } from './scoring';
 import { type UiButton, roundRect, uiScale } from './ui';
 
@@ -39,24 +39,72 @@ export function stepCharacter(character: string, delta: number): string {
   return ALPHABET[next] ?? 'A';
 }
 
-function panel(ctx: CanvasRenderingContext2D, layout: Layout): { x: number; y: number; w: number; h: number } {
+export interface BoardFrame {
+  readonly panel: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  /** Middle of the row of controls under the panel. */
+  readonly buttonsY: number;
+  /** The entries that fit, which may be fewer than the board returned. */
+  readonly rows: readonly BoardRow[];
+  readonly rowHeight: number;
+}
+
+/** The level name above the rows, and the player count below them. */
+const CHROME = 4.2;
+
+/**
+ * The whole layout of the board screen, worked out in one place.
+ *
+ * Everything is placed from the edges inwards rather than at a fraction of the
+ * height, because a phone held sideways is mostly notch and home bar: on one,
+ * a fraction that leaves room on a laptop puts the panel underneath its own
+ * buttons. Drawing and hit-testing both come through here, so the tappable
+ * regions cannot drift away from what is drawn.
+ */
+export function boardFrame(layout: Layout, view: BoardView): BoardFrame {
+  const size = uiScale(layout);
+
+  // Up from the bottom: the safe area, the corner buttons, a gap, then the row
+  // of controls. That is as low as the panel is ever allowed to reach.
+  const corners = size * 0.8 + size * 0.78 * 1.1;
+  const floor = layout.height - layout.insets.bottom - corners - size * 2;
+
+  const x = Math.max(size, (layout.width - size * 26) / 2);
+  const y = layout.insets.top + size * 2.4;
+  const room = Math.max(size * 5, floor - size * 2 - y);
+
+  // Only as many rows as the panel can hold at a legible height. Squeezing ten
+  // into a phone's panel is not showing ten scores, it is showing a smudge.
+  const space = room - size * CHROME;
+  const entries = view.status === 'ready' ? (view.board?.entries ?? []) : [];
+  const rows = visibleRows(entries, Math.max(1, Math.floor(space / (size * 1.5))));
+  const rowHeight = rows.length === 0 ? 0 : Math.min(space / rows.length, size * 1.9);
+
+  // The panel is as tall as its contents rather than as tall as it may be: a
+  // hand of empty rows under the last score reads as a board that gave up
+  // halfway through loading.
+  const h = rows.length === 0 ? Math.min(room, size * 7) : size * CHROME + rows.length * rowHeight;
+
+  return {
+    panel: { x, y, w: layout.width - x * 2, h },
+    // Tucked under the panel, unless the safe area wants them higher.
+    buttonsY: Math.min(floor, y + h + size * 2),
+    rows,
+    rowHeight,
+  };
+}
+
+/** Clear the screen and draw the empty panel. */
+function panel(ctx: CanvasRenderingContext2D, layout: Layout, frame: BoardFrame): void {
   ctx.fillStyle = '#120c22';
   ctx.fillRect(0, 0, layout.width, layout.height);
 
-  const size = uiScale(layout);
-  const x = Math.max(size, (layout.width - size * 26) / 2);
-  const y = layout.insets.top + size * 2.4;
-  const w = layout.width - x * 2;
-  const h = layout.height * 0.62;
-
-  roundRect(ctx, x, y, w, h, size * 0.6);
+  const { x, y, w, h } = frame.panel;
+  roundRect(ctx, x, y, w, h, uiScale(layout) * 0.6);
   ctx.fillStyle = PANEL;
   ctx.fill();
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = '#3d2c66';
   ctx.stroke();
-
-  return { x, y, w, h };
 }
 
 /**
@@ -64,9 +112,15 @@ function panel(ctx: CanvasRenderingContext2D, layout: Layout): { x: number; y: n
  * panel: waiting, unreachable and nobody-yet look identical otherwise, and the
  * difference is the only thing a player actually wants to know.
  */
-export function drawBoard(ctx: CanvasRenderingContext2D, layout: Layout, view: BoardView): void {
+export function drawBoard(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  view: BoardView,
+  frame: BoardFrame,
+): void {
   const size = uiScale(layout);
-  const box = panel(ctx, layout);
+  const { panel: box, rows: shown, rowHeight } = frame;
+  panel(ctx, layout, frame);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -78,24 +132,20 @@ export function drawBoard(ctx: CanvasRenderingContext2D, layout: Layout, view: B
   ctx.fillStyle = INK;
   ctx.fillText(view.levelName, layout.width / 2, box.y + size * 1.3);
 
-  const board = view.board;
-  const rows = board?.entries ?? [];
-
-  if (view.status !== 'ready' || rows.length === 0) {
+  if (shown.length === 0) {
     ctx.font = `400 ${size * 0.9}px system-ui, sans-serif`;
     ctx.fillStyle = DIM;
-    ctx.fillText(emptyMessage(view), layout.width / 2, box.y + box.h / 2);
+    ctx.fillText(emptyMessage(view), layout.width / 2, box.y + box.h * 0.6);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     return;
   }
 
   const top = box.y + size * 2.6;
-  const rowHeight = Math.min((box.h - size * 3.6) / Math.max(rows.length, 1), size * 1.9);
   const left = box.x + size;
   const right = box.x + box.w - size;
 
-  rows.forEach((row, index) => {
+  shown.forEach((row, index) => {
     const y = top + rowHeight * index + rowHeight / 2;
     const mine = row.you;
 
@@ -125,7 +175,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, layout: Layout, view: B
   ctx.textAlign = 'center';
   ctx.font = `400 ${size * 0.78}px system-ui, sans-serif`;
   ctx.fillStyle = DIM;
-  ctx.fillText(footer(board), layout.width / 2, box.y + box.h - size * 0.9);
+  ctx.fillText(footer(view.board, shown), layout.width / 2, box.y + box.h - size * 0.9);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -138,15 +188,34 @@ function emptyMessage(view: BoardView): string {
 }
 
 /**
- * The line under the table. A player outside the top ten came here to find out
- * where they actually are, so their own place is worth more than a total.
+ * The rows to draw when only `count` of them fit.
+ *
+ * The top `count`, except that the player's own row displaces the last one
+ * when it would otherwise fall off: someone who opens the board to find their
+ * place should see it, and the printed rank says the list skipped ahead.
  */
-function footer(board: Board | null): string {
+export function visibleRows<T extends { readonly you: boolean }>(
+  rows: readonly T[],
+  count: number,
+): readonly T[] {
+  const shown = rows.slice(0, count);
+  if (shown.some((row) => row.you)) return shown;
+  const mine = rows.find((row) => row.you);
+  if (!mine || shown.length < count) return shown;
+  return [...shown.slice(0, count - 1), mine];
+}
+
+/**
+ * The line under the table. A player outside the rows on screen came here to
+ * find out where they actually are, so their own place is worth more than a
+ * total.
+ */
+function footer(board: Board | null, shown: readonly { readonly you: boolean }[]): string {
   if (!board) return '';
   const players = `${board.players} ${board.players === 1 ? 'player' : 'players'}`;
   const you = board.you;
   if (!you) return players;
-  const listed = board.entries.some((row) => row.you);
+  const listed = shown.some((row) => row.you);
   return listed ? `You are ${you.initials} · ${players}` : `You: #${you.rank} of ${board.players}`;
 }
 
