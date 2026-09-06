@@ -39,9 +39,14 @@ export const LANE_EXIT_ANGLE = (-100 * Math.PI) / 180;
 
 /** Where the plunger holds a ball, and how hard a full pull launches it. */
 export const PLUNGER_REST: Vec = { x: 349, y: 585 };
-/** A soft plunge must still crest the channel, or the ball just rolls back. */
-export const PLUNGER_MIN_SPEED = 17.2;
-export const PLUNGER_MAX_SPEED = 20.5;
+/**
+ * A soft plunge must still crest the channel, or the ball rolls back onto the
+ * plunger. These are higher than the drop from the plunger to the apex alone
+ * would need, because a ball whipping round a 176-pixel arch presses into the
+ * outer rail hard enough that friction there costs it real speed.
+ */
+export const PLUNGER_MIN_SPEED = 21.8;
+export const PLUNGER_MAX_SPEED = 25.5;
 
 /**
  * The flipper gap has to be wider than a ball plus both flipper tips, or a
@@ -215,21 +220,43 @@ export const DOGHOUSE_POCKET: readonly Vec[] = [
   { x: 187, y: 340 },
 ];
 
-/** Caps that stop a ball slipping behind a target bank and parking there. */
+/**
+ * Caps that stop a ball slipping behind a target bank and parking there.
+ *
+ * Every one of them is tilted towards open play. A horizontal cap seals the gap
+ * just as well and is a shelf: a ball that lands on top of one sits there, and
+ * with the ball rolling rather than sliding there is nothing to nudge it off.
+ * Sloped, anything that lands rolls back onto the playfield.
+ */
 export const BANK_CAPS: readonly (readonly [Vec, Vec])[] = [
-  [{ x: 72, y: 296 }, { x: 88, y: 296 }],
-  [{ x: 76, y: 404 }, { x: 88, y: 404 }],
-  [{ x: 276, y: 314 }, { x: 258, y: 314 }],
-  [{ x: 273, y: 358 }, { x: 258, y: 358 }],
+  [{ x: 72, y: 290 }, { x: 88, y: 300 }],
+  [{ x: 76, y: 398 }, { x: 88, y: 408 }],
+  [{ x: 276, y: 308 }, { x: 258, y: 318 }],
+  [{ x: 273, y: 352 }, { x: 258, y: 362 }],
 ];
 
 /** The rubber that narrows each outlane mouth. */
 export const OUTLANE_POST: Vec = { x: 42, y: 452 };
 export const OUTLANE_POST_RADIUS = 6;
 
-const SLING_KICK = 5.2;
-/** A ball dribbling onto a slingshot should not be fired across the table. */
-const SLING_THRESHOLD = 0.9;
+/**
+ * Each crossing of the slingshot zone costs the ball about 4.4 of downward
+ * speed to gravity, and each rubber it touches on the way returns `kick` times
+ * the sine of its face angle upwards. Set this much above 4 and the two
+ * slingshots between them lift the ball more than gravity drops it: it settles
+ * into a rally across the tops of both, hovering, and the ball never drains.
+ * Lively, but strictly less lively than gravity.
+ */
+const SLING_KICK = 4.2;
+/**
+ * A slingshot fires off a leaf switch, and a leaf switch needs a real whack.
+ * Set this low and any graze fires the coil, which is how a pair of slingshots
+ * facing each other end up trading a slow ball back and forth for ever: each
+ * one relaunches it just hard enough to reach the other. Set it here and a ball
+ * that dribbles into the V is not fast enough to fire either, so it falls
+ * through to the flippers - which is what a slow ball does on a real table too.
+ */
+const SLING_THRESHOLD = 3.5;
 
 function slingshot(side: 'left' | 'right'): Wall[] {
   const flip = side === 'left' ? (p: Vec): Vec => p : mirrorX;

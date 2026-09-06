@@ -154,7 +154,7 @@ export function drawAttract(
   ctx.textBaseline = 'middle';
   ctx.fillStyle = PALETTE.muted;
   ctx.font = '14px system-ui, sans-serif';
-  ctx.fillText('Six missions, three balls, one Labrador.', centre, roxyY + size * 1.5);
+  ctx.fillText('Six missions, three balls, one golden retriever.', centre, roxyY + size * 1.5);
 
   const listTop = bottom - listHeight - 16;
   if (save.highScores.length > 0) {

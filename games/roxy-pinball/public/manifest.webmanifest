@@ -1,7 +1,7 @@
 {
   "name": "Roxy Pinball",
   "short_name": "Roxy Pinball",
-  "description": "A pinball table starring Roxy the Labrador.",
+  "description": "A 3D pinball table starring Roxy the golden retriever.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

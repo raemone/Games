@@ -9,7 +9,7 @@
 import type { Audio, Sfx } from '../engine/audio';
 import type { InputState } from '../engine/input';
 import type { Ball, Collider, Flipper, Hit, World } from './physics';
-import { makeBall, makeFlipper, nudge, step } from './physics';
+import { makeBall, makeFlipper, nudge, setRolling, step } from './physics';
 import type { MissionState, Shot } from './missions';
 import {
   endMission,
@@ -239,6 +239,11 @@ export class Session {
     const speed = PLUNGER_MIN_SPEED + (PLUNGER_MAX_SPEED - PLUNGER_MIN_SPEED) * power;
     play.ball.vy = -speed;
     play.ball.vx = 0;
+    play.ball.vz = 0;
+    // The lane grips the ball within an inch, so it leaves the plunger rolling.
+    // Simulating that slide instead costs it a third of its energy and a full
+    // plunge dies halfway up the channel.
+    setRolling(play.ball);
     this.plungerCharge = 0;
     this.idleTicks = 0;
     this.audio.play('launch', power);
@@ -470,6 +475,8 @@ export class Session {
     play.ball.y = HABITRAIL_RIGHT_EXIT.y;
     play.ball.vx = -0.6;
     play.ball.vy = 2.4;
+    play.ball.vz = 0;
+    setRolling(play.ball);
     play.ball.inside.clear();
     play.lane = null;
     this.balls.push(play);

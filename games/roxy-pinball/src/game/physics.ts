@@ -1,5 +1,6 @@
 /**
- * The ball simulation: gravity, walls, posts, flippers and nothing else.
+ * The ball simulation: a steel sphere on an inclined plane, and the geometry it
+ * hits. Gravity, contact, friction and spin, and nothing else.
  *
  * Everything here is a pure function over plain data. It knows about hitting a
  * thing with an id; it does not know that the thing is worth 500 points or that
@@ -7,8 +8,21 @@
  * feel of the table be unit tested without a canvas.
  *
  * Units are table pixels and 60Hz ticks - the same convention as `loop.ts`.
- * The table is 380 x 680, roughly a real playfield's proportions, and gravity
- * is the real thing resolved along a 6.5-degree incline and scaled to match.
+ * The table is 380 x 680, roughly a real playfield's proportions, on a
+ * 6.5-degree incline like a real one.
+ *
+ * The ball is a rigid sphere, not a point. It carries an angular velocity, and
+ * every contact applies a Coulomb friction impulse alongside the normal one, so
+ * the ball spins up as it rolls, picks up sidespin off a rubber and carries
+ * that spin into its next bounce. That is not decoration: a rolling sphere
+ * accelerates down a slope at five sevenths of the rate a sliding one does,
+ * because two sevenths of the work goes into spinning it up, and shots that
+ * were tuned without it land somewhere else.
+ *
+ * `z` is height above the playfield. It is zero almost all of the time - a
+ * pinball rarely leaves the wood - but a slingshot or a pop bumper can pop the
+ * ball into the air, and letting it happen is most of what makes a 3D table
+ * look alive rather than like a diagram with lighting.
  */
 /** A point or a direction on the playfield. */
 export interface Vec {
@@ -16,11 +30,50 @@ export interface Vec {
   readonly y: number;
 }
 
+/** An angular velocity, in radians per tick, about each table axis. */
+export interface Spin {
+  x: number;
+  y: number;
+  z: number;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
 }
 
-export const GRAVITY = 0.22;
+/**
+ * Gravity resolved along the incline. A rolling sphere only gets five sevenths
+ * of this - the rest spins it up - so the figure here is the 0.22 the table was
+ * laid out against, divided by 5/7. A ball that is sliding, or in the air, does
+ * get the whole of it, which is exactly the difference between the two.
+ */
+export const GRAVITY = 0.308;
+
+/** What a rolling ball actually accelerates at. Only used by tests and tools. */
+export const ROLLING_GRAVITY = (GRAVITY * 5) / 7;
+
+/** Downwards, off the playfield and towards the glass, for a ball in the air. */
+export const GRAVITY_Z = 1.94;
+
+/**
+ * Steel on a waxed, mylar-topped playfield. Very low - real ones are slick on
+ * purpose - but not nothing: it is what spins the ball up out of a slide.
+ */
+const PLAYFIELD_FRICTION = 0.1;
+/** Rails and posts. Slicker than the playfield, but enough to impart sidespin. */
+const WALL_FRICTION = 0.12;
+/** How much of its speed the ball keeps bouncing off the playfield itself. */
+const PLAYFIELD_BOUNCE = 0.3;
+
+/** Flipper rubber. Grippy, which is why a flipper shot comes off with backspin. */
+const FLIPPER_FRICTION = 0.5;
+const FLIPPER_BOUNCE = 0.5;
+
+/**
+ * Rolling resistance. Tiny, and nothing like sliding friction: it is what stops
+ * a ball rolling round a flat table for ever, and no more than that.
+ */
+const ROLLING_RESISTANCE = 0.0016;
 
 /**
  * A ball faster than this has usually been squeezed between the flipper and a
@@ -28,11 +81,11 @@ export const GRAVITY = 0.22;
  * the table. Capping is cheaper than a swept collision test and, at this speed,
  * invisible.
  */
-export const MAX_SPEED = 24;
+export const MAX_SPEED = 30;
 
 /**
  * Collision is resolved this many times per tick. The cap above means a ball
- * moves at most MAX_SPEED / SUBSTEPS = 4px between tests, comfortably less
+ * moves at most MAX_SPEED / SUBSTEPS = 5px between tests, comfortably less
  * than its own radius, so nothing passes through a wall between two frames.
  */
 export const SUBSTEPS = 6;
@@ -49,8 +102,13 @@ const DRAG = 0.9995;
 export interface Ball {
   x: number;
   y: number;
+  /** Height above the playfield. Zero while the ball is on the wood. */
+  z: number;
   vx: number;
   vy: number;
+  vz: number;
+  /** Radians per tick about each table axis. Drives the look, and the curve. */
+  readonly spin: Spin;
   readonly radius: number;
   /**
    * Ids of the triggers this ball is currently inside. A trigger fires when a
@@ -61,7 +119,131 @@ export interface Ball {
 }
 
 export function makeBall(x: number, y: number, vx = 0, vy = 0, radius = 9): Ball {
-  return { x, y, vx, vy, radius, inside: new Set() };
+  return { x, y, z: 0, vx, vy, vz: 0, spin: { x: 0, y: 0, z: 0 }, radius, inside: new Set() };
+}
+
+/**
+ * Set the spin that matches the ball's current velocity, so it is rolling
+ * rather than sliding.
+ *
+ * A ball fired up the lane by a plunger is gripped by the lane and rolls within
+ * a centimetre or two; simulating that slide costs it a third of its energy and
+ * a plunge that should reach the top of the table dies halfway up. So anywhere
+ * the game hands the ball a velocity out of nothing - the plunger, a saucer
+ * kick-out - it hands it the matching spin too.
+ */
+export function setRolling(ball: Ball): void {
+  ball.spin.x = -ball.vy / ball.radius;
+  ball.spin.y = ball.vx / ball.radius;
+}
+
+/** Moment of inertia of a solid sphere is (2/5)mR², so this is m/I with m = 1. */
+function inverseInertia(radius: number): number {
+  return 2.5 / (radius * radius);
+}
+
+/** Velocity of the point on the ball's surface at offset r from its centre. */
+function contactVelocity(ball: Ball, rx: number, ry: number, rz: number): Spin {
+  return {
+    x: ball.vx + ball.spin.y * rz - ball.spin.z * ry,
+    y: ball.vy + ball.spin.z * rx - ball.spin.x * rz,
+    z: ball.vz + ball.spin.x * ry - ball.spin.y * rx,
+  };
+}
+
+/** Apply an impulse at offset r, which changes the spin as well as the speed. */
+function applyImpulse(
+  ball: Ball,
+  jx: number,
+  jy: number,
+  jz: number,
+  rx: number,
+  ry: number,
+  rz: number,
+): void {
+  ball.vx += jx;
+  ball.vy += jy;
+  ball.vz += jz;
+  const k = inverseInertia(ball.radius);
+  ball.spin.x += k * (ry * jz - rz * jy);
+  ball.spin.y += k * (rz * jx - rx * jz);
+  ball.spin.z += k * (rx * jy - ry * jx);
+}
+
+/**
+ * The whole contact model, in one place: bounce along the normal, then a
+ * Coulomb friction impulse across it.
+ *
+ * The friction term is what makes the table feel like it has a surface. It
+ * spins the ball up as it rolls, it puts sidespin on a ball that grazes a
+ * rubber, and because the impulse acts at the ball's skin rather than its
+ * centre, the spin it creates bends the next shot. `2/7` is the impulse that
+ * would stop a sphere's contact point dead; friction is capped at that, so it
+ * can bring a sliding ball into a roll but never spin it backwards.
+ *
+ * Returns the closing speed, or null when the ball was already moving away -
+ * which happens constantly as it rolls along a wall. Overlapping is not the
+ * same thing as hitting.
+ */
+function resolveContact(
+  ball: Ball,
+  nx: number,
+  ny: number,
+  nz: number,
+  bounce: number,
+  friction: number,
+): number | null {
+  const rx = -nx * ball.radius;
+  const ry = -ny * ball.radius;
+  const rz = -nz * ball.radius;
+  const contact = contactVelocity(ball, rx, ry, rz);
+
+  const closing = contact.x * nx + contact.y * ny + contact.z * nz;
+  if (closing >= 0) return null;
+
+  const normal = -(1 + bounce) * closing;
+  applyImpulse(ball, normal * nx, normal * ny, normal * nz, rx, ry, rz);
+
+  const tx = contact.x - closing * nx;
+  const ty = contact.y - closing * ny;
+  const tz = contact.z - closing * nz;
+  const sliding = Math.hypot(tx, ty, tz);
+  if (sliding > 1e-6 && friction > 0) {
+    const grip = Math.min(friction * normal, (2 / 7) * sliding);
+    applyImpulse(ball, (-grip * tx) / sliding, (-grip * ty) / sliding, (-grip * tz) / sliding, rx, ry, rz);
+  }
+
+  return -closing;
+}
+
+/**
+ * The ball resting on the playfield, which is where it spends nearly all of its
+ * life. There is no collision here - nothing is closing - but the table is
+ * still holding the ball up, and that supporting force is what friction acts
+ * against. Without this a ball would slide down the slope like a hockey puck.
+ */
+function playfieldContact(ball: Ball, dt: number): void {
+  const rz = -ball.radius;
+  const slipX = ball.vx + ball.spin.y * rz;
+  const slipY = ball.vy - ball.spin.x * rz;
+  const slipping = Math.hypot(slipX, slipY);
+
+  if (slipping > 1e-6) {
+    // The normal force over one substep is what a Coulomb limit is a fraction
+    // of, so a ball pressed harder into the table grips harder.
+    const support = GRAVITY_Z * dt;
+    const grip = Math.min(PLAYFIELD_FRICTION * support, (2 / 7) * slipping);
+    applyImpulse(ball, (-grip * slipX) / slipping, (-grip * slipY) / slipping, 0, 0, 0, rz);
+  }
+
+  // Rolling resistance, applied to speed and spin together so that a ball
+  // already rolling stays rolling as it slows.
+  const decay = 1 - ROLLING_RESISTANCE;
+  ball.vx *= decay;
+  ball.vy *= decay;
+  ball.spin.x *= decay;
+  ball.spin.y *= decay;
+  ball.spin.z *= decay;
 }
 
 /** A straight solid edge. Arcs are subdivided into these when the table loads. */
@@ -187,6 +369,25 @@ export function step(world: World): Hit[] {
       ball.vy *= DRAG;
       ball.x += ball.vx * dt;
       ball.y += ball.vy * dt;
+
+      // Height is its own little simulation: full gravity towards the wood, and
+      // a bounce when it gets there. On the table the ball is instead resting,
+      // and what matters is the friction that resting contact allows.
+      if (ball.z > 0 || ball.vz > 0) {
+        ball.vz -= GRAVITY_Z * dt;
+        ball.z += ball.vz * dt;
+        if (ball.z <= 0) {
+          ball.z = 0;
+          resolveContact(ball, 0, 0, 1, PLAYFIELD_BOUNCE, PLAYFIELD_FRICTION);
+          // Below a millimetre of hop it is on the table, not bouncing on it.
+          if (Math.abs(ball.vz) < 0.35) ball.vz = 0;
+        }
+      } else {
+        ball.z = 0;
+        ball.vz = 0;
+        playfieldContact(ball, dt);
+      }
+
       capSpeed(ball);
     }
 
@@ -229,9 +430,20 @@ function advanceFlipper(flipper: Flipper, dt: number): void {
 
 function capSpeed(ball: Ball): void {
   const speed = Math.hypot(ball.vx, ball.vy);
-  if (speed <= MAX_SPEED) return;
-  ball.vx = (ball.vx / speed) * MAX_SPEED;
-  ball.vy = (ball.vy / speed) * MAX_SPEED;
+  if (speed > MAX_SPEED) {
+    ball.vx = (ball.vx / speed) * MAX_SPEED;
+    ball.vy = (ball.vy / speed) * MAX_SPEED;
+  }
+  // A ball squeezed between a flipper and a wall can otherwise accumulate spin
+  // for ever, and a sphere doing four thousand rpm renders as a grey smear.
+  const spinCap = (MAX_SPEED * 2) / ball.radius;
+  const spin = Math.hypot(ball.spin.x, ball.spin.y, ball.spin.z);
+  if (spin > spinCap) {
+    const scale = spinCap / spin;
+    ball.spin.x *= scale;
+    ball.spin.y *= scale;
+    ball.spin.z *= scale;
+  }
 }
 
 interface Contact {
@@ -276,7 +488,26 @@ function resolveWall(ball: Ball, wall: Wall): Contact | null {
     if (!onBlockedSide || !movingIntoWall) return null;
   }
 
-  return separate(ball, nx, ny, ball.radius - distance, wall.bounce, wall.kick ?? 0, wall.kickThreshold ?? 0, { x: cx, y: cy });
+  // A kicker only kicks along its face. At either end the closest point is the
+  // endpoint itself and the normal swings round to point wherever the ball
+  // happens to be, so a ball skimming the top of a slingshot gets fired
+  // vertically. Two slingshots facing each other then trade a ball back and
+  // forth for ever, each one relaunching it before gravity can bring it down -
+  // a rally that never ends and a game that never gets to ball two. On a real
+  // table those ends are the posts the rubber is stretched over, and a post
+  // does not kick.
+  const onFace = t > 0.08 && t < 0.92;
+
+  return separate(
+    ball,
+    nx,
+    ny,
+    ball.radius - distance,
+    wall.bounce,
+    onFace ? (wall.kick ?? 0) : 0,
+    wall.kickThreshold ?? 0,
+    { x: cx, y: cy },
+  );
 }
 
 function resolvePost(ball: Ball, post: Post): Contact | null {
@@ -299,10 +530,8 @@ function resolvePost(ball: Ball, post: Post): Contact | null {
 }
 
 /**
- * Push the ball out of a surface along `n` and reflect the part of its velocity
- * that was heading into it. Returns null when the ball was already moving away,
- * which happens constantly while it rolls along a wall - overlapping is not the
- * same thing as hitting.
+ * Push the ball out of a vertical surface and resolve the contact against it.
+ * Walls are upright, so the normal has no height component.
  */
 function separate(
   ball: Ball,
@@ -317,19 +546,21 @@ function separate(
   ball.x += nx * depth;
   ball.y += ny * depth;
 
-  const approach = ball.vx * nx + ball.vy * ny;
-  if (approach >= 0) return null;
+  const speed = resolveContact(ball, nx, ny, 0, bounce, WALL_FRICTION);
+  if (speed === null) return null;
 
-  ball.vx -= (1 + bounce) * approach * nx;
-  ball.vy -= (1 + bounce) * approach * ny;
-
-  const speed = -approach;
   // A pop bumper or slingshot adds its own energy, but only when the ball
   // arrived with some of its own. Otherwise a ball resting against a rubber
   // gets fired across the table for free.
   if (kick > 0 && speed >= kickThreshold) {
     ball.vx += nx * kick;
     ball.vy += ny * kick;
+    // Rubber squeezes as well as pushes, and some of that comes out as lift.
+    ball.vz += kick * 0.22;
+  } else if (speed > 9) {
+    // A hard hit on a rail hops the ball a little. It is what stops a fast
+    // rattle looking like a diagram of a fast rattle.
+    ball.vz += (speed - 9) * 0.06;
   }
   capSpeed(ball);
   return { speed, at };
@@ -364,22 +595,36 @@ function resolveFlipper(ball: Ball, flipper: Flipper): Contact | null {
   ball.x += nx * (minimum - distance);
   ball.y += ny * (minimum - distance);
 
-  // Velocity of the flipper's surface at the contact point: omega x r.
-  const rx = cx - flipper.pivot.x;
-  const ry = cy - flipper.pivot.y;
-  const surfaceX = -flipper.angularVelocity * ry;
-  const surfaceY = flipper.angularVelocity * rx;
+  // Velocity of the flipper's own surface at the contact point: omega x r.
+  const surfaceX = -flipper.angularVelocity * (cy - flipper.pivot.y);
+  const surfaceY = flipper.angularVelocity * (cx - flipper.pivot.x);
 
-  const relativeX = ball.vx - surfaceX;
-  const relativeY = ball.vy - surfaceY;
-  const approach = relativeX * nx + relativeY * ny;
-  if (approach >= 0) return null;
+  const rx = -nx * ball.radius;
+  const ry = -ny * ball.radius;
+  const contact = contactVelocity(ball, rx, ry, 0);
+  const relX = contact.x - surfaceX;
+  const relY = contact.y - surfaceY;
+  const relZ = contact.z;
 
-  const bounce = 0.5;
-  ball.vx -= (1 + bounce) * approach * nx;
-  ball.vy -= (1 + bounce) * approach * ny;
+  const closing = relX * nx + relY * ny;
+  if (closing >= 0) return null;
+
+  const normal = -(1 + FLIPPER_BOUNCE) * closing;
+  applyImpulse(ball, normal * nx, normal * ny, 0, rx, ry, 0);
+
+  // The rubber grips hard, so a swinging flipper drags the ball's surface along
+  // with it and sends it away spinning. That backspin is why a flipper shot up
+  // an orbit holds its line instead of drifting into the wall.
+  const tx = relX - closing * nx;
+  const ty = relY - closing * ny;
+  const sliding = Math.hypot(tx, ty, relZ);
+  if (sliding > 1e-6) {
+    const grip = Math.min(FLIPPER_FRICTION * normal, (2 / 7) * sliding);
+    applyImpulse(ball, (-grip * tx) / sliding, (-grip * ty) / sliding, (-grip * relZ) / sliding, rx, ry, 0);
+  }
+
   capSpeed(ball);
-  return { speed: -approach, at: { x: cx, y: cy } };
+  return { speed: -closing, at: { x: cx, y: cy } };
 }
 
 /** Equal-mass elastic collision, so multiball balls shove each other about. */

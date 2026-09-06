@@ -92,9 +92,9 @@ plunge, and a squirrel who has no business being on that fence.
 **Play it:** https://raemone.github.io/Games/roxy-pinball/
 
 Best on a phone held upright. Add it to the home screen and it installs as an
-app and works offline. Roxy is drawn as a yellow Labrador here - blockier head
-and shorter ears than her Roxy Run sprite, and every appearance of her in the
-game comes from the same `src/game/roxy.ts`.
+app and works offline. Every appearance of Roxy in the game - the attract
+screen, the playfield art, the apron, the app icon - comes from the same
+`src/game/roxy.ts`, so there is exactly one of her.
 
 ### Controls
 

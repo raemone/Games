@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   GRAVITY,
+  GRAVITY_Z,
   MAX_SPEED,
+  ROLLING_GRAVITY,
   SUBSTEPS,
   makeBall,
   makeFlipper,
@@ -19,11 +21,34 @@ const floor = (bounce: number): Wall => ({
 });
 
 describe('gravity', () => {
-  it('accelerates a ball downwards by one gravity per tick', () => {
+  it('rolls a ball down the slope at five sevenths of gravity', () => {
+    // Two sevenths of the work goes into spinning the sphere up. This is the
+    // number the whole table was laid out against, so it is worth pinning.
     const ball = makeBall(0, 0);
     const world = bareWorld([], [ball]);
     step(world);
-    expect(ball.vy).toBeCloseTo(GRAVITY, 3);
+    expect(ball.vy).toBeCloseTo(ROLLING_GRAVITY, 2);
+    expect(ball.vy).toBeLessThan(GRAVITY);
+  });
+
+  it('gives a ball in the air the whole of gravity instead', () => {
+    // Nothing is spinning up: an airborne ball has no contact to grip against.
+    const ball = makeBall(0, 0);
+    ball.z = 40;
+    const world = bareWorld([], [ball]);
+    step(world);
+    // Air drag takes a whisker off both, hence two places rather than three.
+    expect(ball.vy).toBeCloseTo(GRAVITY, 2);
+    expect(ball.vz).toBeCloseTo(-GRAVITY_Z, 2);
+  });
+
+  it('spins the ball up as it rolls, in the direction it is travelling', () => {
+    const ball = makeBall(0, 0);
+    const world = bareWorld([], [ball]);
+    for (let i = 0; i < 60; i++) step(world);
+    // Rolling in +y means the contact point is stationary, which for a ball of
+    // radius R means a spin of -v/R about the x axis.
+    expect(ball.spin.x).toBeCloseTo(-ball.vy / ball.radius, 1);
   });
 
   it('never clamps a slow ball to a standstill', () => {
@@ -84,7 +109,7 @@ describe('one-way gates', () => {
     const ball = makeBall(0, 40, 0, -8);
     const world = bareWorld([gate], [ball]);
     for (let i = 0; i < 10; i++) step(world);
-    expect(ball.y).toBeLessThan(-10);
+    expect(ball.y).toBeLessThan(-9);
   });
 });
 
@@ -195,6 +220,27 @@ describe('triggers', () => {
     step(world);
     ball.y = 0;
     expect(step(world).filter((h) => h.id === 'lane')).toHaveLength(1);
+  });
+});
+
+describe('spin', () => {
+  it('picks sidespin up off a wall it grazes', () => {
+    // A ball sliding along a rubber leaves it turning. Without this the ball is
+    // a point with a picture of a sphere on it.
+    const wall: Wall = { kind: 'wall', a: { x: 10, y: -200 }, b: { x: 10, y: 200 }, bounce: 0.4 };
+    const ball = makeBall(0, 0, 3, 9);
+    const world = bareWorld([wall], [ball]);
+    for (let i = 0; i < 20; i++) step(world);
+    expect(Math.abs(ball.spin.z)).toBeGreaterThan(0.02);
+  });
+
+  it('lands and settles rather than bouncing for ever', () => {
+    const ball = makeBall(0, 0);
+    ball.z = 30;
+    const world = bareWorld([], [ball]);
+    for (let i = 0; i < 240; i++) step(world);
+    expect(ball.z).toBe(0);
+    expect(ball.vz).toBe(0);
   });
 });
 

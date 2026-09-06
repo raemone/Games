@@ -35,22 +35,31 @@ const COLOURS = {
 
 /**
  * Half-widths, by row. Writing the head this way rather than as a circle is
- * what gives a Labrador its square skull and heavy jaw instead of a retriever's
+ * what gives a retriever her narrow skull and long muzzle instead of a
  * neat oval.
  */
 const HEAD = {
-  4: 5, 5: 7, 6: 8, 7: 9, 8: 9, 9: 10, 10: 10, 11: 10, 12: 10,
-  13: 10, 14: 10, 15: 9, 16: 9, 17: 9, 18: 8, 19: 8, 20: 7, 21: 6, 22: 5, 23: 3,
+  4: 4, 5: 6, 6: 7, 7: 8, 8: 8, 9: 9, 10: 9, 11: 9, 12: 9,
+  13: 9, 14: 8, 15: 8, 16: 8, 17: 7, 18: 7, 19: 6, 20: 6, 21: 5, 22: 4, 23: 3,
 };
 
-/** How far each ear sticks out past the head on that row. */
+/**
+ * The ears, as an inner and outer half-width per row rather than as an overhang
+ * on the head. They have to keep their width as the jaw narrows below them -
+ * an ear that tracks the head stops at the cheek, and a retriever's hangs well
+ * past the jaw and tapers to a feathered point.
+ */
 const EARS = {
-  6: 2, 7: 3, 8: 4, 9: 5, 10: 5, 11: 5, 12: 5, 13: 5, 14: 4, 15: 4, 16: 3, 17: 2, 18: 1,
+  6: [8, 10], 7: [9, 12], 8: [9, 13], 9: [10, 14], 10: [10, 14], 11: [10, 14],
+  12: [10, 14], 13: [10, 14], 14: [9, 14], 15: [9, 13], 16: [8, 13], 17: [8, 13],
+  18: [7, 12], 19: [7, 12], 20: [6, 11], 21: [6, 10], 22: [7, 9],
 };
 
 const BLAZE = { 5: 2, 6: 3, 7: 4, 8: 4, 9: 4, 10: 4, 11: 4, 12: 4, 13: 4, 14: 4, 15: 4 };
 const MUZZLE = { 15: 5, 16: 6, 17: 6, 18: 6, 19: 5, 20: 4 };
 const COLLAR = { 24: 7, 25: 7, 26: 6 };
+/** The pale ruff showing under her chin, above the collar. */
+const RUFF = { 23: 4, 24: 3 };
 
 const rgba = new Uint8Array(SIZE * SIZE * 4);
 
@@ -80,12 +89,11 @@ function disc(cx, cy, radius, colour) {
 for (let i = 0; i < SIZE * SIZE; i++) rgba.set(parse(COLOURS.bg), i * 4);
 
 // Ears first, so the head overlaps them where they meet the skull.
-for (const [row, out] of Object.entries(EARS)) {
+for (const [row, [inner, outer]] of Object.entries(EARS)) {
   const y = Number(row);
-  const head = HEAD[y] ?? 0;
-  for (let i = 0; i < out; i++) {
-    put(Math.ceil(CX - head - 1 - i), y, COLOURS.ear);
-    put(Math.floor(CX + head + 1 + i), y, COLOURS.ear);
+  for (let d = inner; d <= outer; d++) {
+    put(Math.ceil(CX - d), y, COLOURS.ear);
+    put(Math.floor(CX + d), y, COLOURS.ear);
   }
 }
 
@@ -108,6 +116,7 @@ span(19, 1, COLOURS.tongue);
 span(20, 1, COLOURS.tongue);
 span(21, 0.5, COLOURS.tongue);
 
+for (const [row, half] of Object.entries(RUFF)) span(Number(row), half, COLOURS.muzzle);
 for (const [row, half] of Object.entries(COLLAR)) span(Number(row), half, COLOURS.collar);
 disc(CX, 27.5, 1.6, COLOURS.tag);
 

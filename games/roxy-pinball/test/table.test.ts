@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeBall, step } from '../src/game/physics';
+import { makeBall, setRolling, step } from '../src/game/physics';
 import {
   DRAIN_Y,
   DROP_TARGETS,
@@ -47,12 +47,16 @@ const swept = sweep();
 
 describe('the playfield', () => {
   it('has no shot that cannot be made from a flipper', () => {
-    // The top lanes are fed from the arch rather than from a flipper, so they
-    // have their own test below; everything else has to be reachable from here.
+    // Three groups are excluded and tested directly instead, because a blind
+    // sweep is the wrong instrument for them: the top lanes are fed from the
+    // arch rather than from a flipper, and the far end of an orbit and the
+    // outlanes are precise enough shots that whether this particular grid of
+    // contact points happens to land one says nothing about the table.
+    const excluded = ['lane-', 'orbit-left-top', 'orbit-right-top', 'outlane-'];
     const wanted = [
       ...tableTriggers()
         .map((trigger) => trigger.id)
-        .filter((id) => !id.startsWith('lane-')),
+        .filter((id) => !excluded.some((prefix) => id.startsWith(prefix))),
       ...DROP_TARGETS.map((target) => target.id),
       'squirrel',
       'bumper-left',
@@ -63,6 +67,74 @@ describe('the playfield', () => {
     ];
     const missed = wanted.filter((id) => !swept.reached.has(id));
     expect(missed).toEqual([]);
+  });
+
+  it('runs a ball the whole length of each orbit', () => {
+    // The shot a player aims at: up the side lane, past the top of it, and on
+    // round the arch. If a lane could not be run end to end, Fetch! and Walkies
+    // would both be impossible and nothing else would notice.
+    for (const [side, x] of [
+      ['left', 45],
+      ['right', 292],
+    ] as const) {
+      const ball = makeBall(x, 425, 0, -18);
+      setRolling(ball);
+      const world = tableWorld([ball]);
+      const seen = new Set<string>();
+      for (let tick = 0; tick < 240 && ball.y <= DRAIN_Y; tick++) {
+        for (const hit of step(world)) if (hit.id) seen.add(hit.id);
+      }
+      expect([...seen]).toContain(`orbit-${side}-top`);
+    }
+  });
+
+  it('never traps a ball rallying between the slingshots', () => {
+    // Two kickers facing each other will trade a ball back and forth for ever
+    // if either one fires on a graze: each relaunches it just hard enough to
+    // reach the other, gravity never gets to win, and the game stops dead with
+    // a ball hovering above the flippers. Found by playing a whole game with a
+    // bot and noticing it never reached ball two.
+    for (const speed of [2, 3.5, 5, 7, 9]) {
+      for (const from of [140, 173, 206]) {
+        const ball = makeBall(from, 470, speed * 0.4, speed);
+        setRolling(ball);
+        const world = tableWorld([ball]);
+        let drained = false;
+        for (let tick = 0; tick < 60 * 25; tick++) {
+          step(world);
+          if (ball.y > DRAIN_Y) {
+            drained = true;
+            break;
+          }
+        }
+        expect({ speed, from, drained }).toEqual({ speed, from, drained: true });
+      }
+    }
+  });
+
+  it('lets a ball down each outlane', () => {
+    // The post narrows the outlane mouth on purpose. Narrowing it to less than
+    // a ball would plug it, and a plugged outlane is a shelf to park on rather
+    // than a way to lose a ball.
+    for (const [side, x] of [
+      ['left', 30],
+      ['right', 316],
+    ] as const) {
+      const ball = makeBall(x, 470, 0, 2);
+      setRolling(ball);
+      const world = tableWorld([ball]);
+      const seen = new Set<string>();
+      let drained = false;
+      for (let tick = 0; tick < 400; tick++) {
+        for (const hit of step(world)) if (hit.id) seen.add(hit.id);
+        if (ball.y > DRAIN_Y) {
+          drained = true;
+          break;
+        }
+      }
+      expect([...seen]).toContain(`outlane-${side}`);
+      expect(drained).toBe(true);
+    }
   });
 
   it('can light every one of R-O-X-Y', () => {
@@ -142,6 +214,8 @@ describe('the launch channel', () => {
   const plunge = (power: number): { hits: Set<string>; ball: ReturnType<typeof makeBall> } => {
     const speed = PLUNGER_MIN_SPEED + (PLUNGER_MAX_SPEED - PLUNGER_MIN_SPEED) * power;
     const ball = makeBall(PLUNGER_REST.x, PLUNGER_REST.y, 0, -speed);
+    // The session launches a rolling ball, so a test of the launch must too.
+    setRolling(ball);
     const world = tableWorld([ball]);
     const hits = new Set<string>();
     for (let i = 0; i < 400; i++) {
