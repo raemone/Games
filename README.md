@@ -83,6 +83,117 @@ The trade-off is that progress does not follow you from one device to another.
 
 ---
 
+## Roxy Pinball
+
+A pinball table in the back garden, with Roxy on the playfield and six missions
+to work through. Real flipper physics, a launch channel that rewards a measured
+plunge, and a squirrel who has no business being on that fence.
+
+**Play it:** https://raemone.github.io/Games/roxy-pinball/
+
+Best on a phone held upright. Add it to the home screen and it installs as an
+app and works offline. Roxy is drawn as a yellow Labrador here - blockier head
+and shorter ears than her Roxy Run sprite, and every appearance of her in the
+game comes from the same `src/game/roxy.ts`.
+
+### Controls
+
+| | Keyboard | Touch |
+|---|---|---|
+| Left flipper | Left arrow, A, Z or left Shift | Tap anywhere on the left half |
+| Right flipper | Right arrow, D, / or right Shift | Tap anywhere on the right half |
+| Plunger | Hold and release Space or Down | Hold and release PULL |
+| Nudge | Q, W and E | The two NUDGE buttons |
+| Pause | Esc or P | Pause icon |
+
+Gamepads work too. The flippers are the whole left and right halves of the
+screen rather than two small buttons, because a thumb hunting for a target is
+a thumb that is not watching the ball.
+
+### How it plays
+
+Three balls. The first twelve seconds of each are covered by a ball save, so a
+bad plunge is not the end of a turn.
+
+Shooting the doghouse starts whichever mission is flashing on the playfield,
+and shooting it during the six seconds after a launch is the skill shot
+instead. Missions are timed, but running out of time is not a punishment: the
+progress is kept, so the next attempt picks up where the last one stopped.
+
+| Mission | What it wants |
+|---|---|
+| Fetch! | Either orbit, three times |
+| Squirrel Chase | Five hits on the squirrel |
+| Walkies | The orbits alternately - left, right, left, right |
+| Dinner Time | Twenty-four bumper hits |
+| Bath Time | All four brushes dropped |
+| Bury the Bone | The doghouse, three times |
+
+Finish all six and Best in Show lights at the doghouse: three balls at once,
+with everything on the table paying a jackpot.
+
+Rolling through R-O-X-Y at the top steps the bonus multiplier up. That
+multiplier is not the score - it multiplies the bones collected during the
+ball, which are cashed in when it drains. Two currencies rather than one, so a
+ball that ends badly still pays for the shots that were made before the drain,
+which is the difference between a child trying again and putting the tablet
+down.
+
+Nudging shoves the ball. Four shoves in quick succession tilts, and a tilted
+table has dead flippers until the ball drains - the same bargain a real machine
+offers.
+
+### Where things live
+
+```
+games/roxy-pinball/
+  src/engine/   loop, renderer, input, audio, storage
+  src/game/     physics, table geometry, missions, scoring, session, drawing
+  tools/        the icon generator, and two offline views of the table
+```
+
+`src/game/physics.ts` and `src/game/table.ts` are the pair worth reading first.
+The physics knows only that something with an id was hit; the table is every
+coordinate on the playfield, written once, so moving a bumper moves the thing
+the ball hits, the thing on screen and the thing a mission asks for together.
+`src/game/missions.ts` and `src/game/scoring.ts` are pure functions over plain
+data, which is why a whole mission can be played out in a test in a dozen lines.
+
+Two details in there are load-bearing and easy to undo by accident. The
+simulation runs six collision passes per tick, chosen so a ball at full speed
+moves less than its own radius between passes and cannot pass through a wall.
+And there is deliberately no rule that stops a slow ball: gravity adds about a
+thirty-seventh of a pixel per pass, so any threshold that zeroes small
+velocities glues a resting ball to whatever it settled against and eats it.
+
+### Working on it
+
+```bash
+cd games/roxy-pinball
+npm install
+npm run dev      # local dev server
+npm test         # unit tests, and a sweep of every shot on the table
+npm run build    # type-check and production build
+npm run icon     # regenerate the app icons
+npm run table    # draw the playfield's collision geometry to a PNG
+npm run sim      # trace one ball through the real physics, to a PNG
+```
+
+`npm test` includes the playthrough test: it fires a ball off both flippers
+from every contact point and release time, and fails if any shot on the table
+cannot be reached or if a ball can come to rest somewhere it cannot get out of.
+That test is how the table was built - `npm run table` and `npm run sim` draw
+what it is checking, for when a number needs moving by eye.
+
+### Saving
+
+High scores and the sound setting are kept in the browser's `localStorage`, on
+the device. There is no server and no account, so nothing about who is playing
+ever leaves the tablet. The trade-off is that the table on the phone and the
+table on the iPad keep separate high scores.
+
+---
+
 ## Poop Patrol
 
 A backyard chore tracker for the family: who picked up after Roxy, on which

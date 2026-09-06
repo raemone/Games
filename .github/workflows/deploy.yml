@@ -29,6 +29,7 @@ jobs:
           cache-dependency-path: |
             games/roxy-run/package-lock.json
             games/poop-patrol/package-lock.json
+            games/roxy-pinball/package-lock.json
 
       - name: Install (roxy-run)
         working-directory: games/roxy-run
@@ -54,12 +55,25 @@ jobs:
         working-directory: games/poop-patrol
         run: npm run build
 
+      - name: Install (roxy-pinball)
+        working-directory: games/roxy-pinball
+        run: npm ci
+
+      - name: Test (roxy-pinball)
+        working-directory: games/roxy-pinball
+        run: npm test
+
+      - name: Build (roxy-pinball)
+        working-directory: games/roxy-pinball
+        run: npm run build
+
       - name: Assemble site
         run: |
           mkdir -p _site
           cp site/index.html _site/index.html
           cp -r games/roxy-run/dist _site/roxy-run
           cp -r games/poop-patrol/dist _site/poop-patrol
+          cp -r games/roxy-pinball/dist _site/roxy-pinball
 
       - uses: actions/upload-pages-artifact@v3
         with:

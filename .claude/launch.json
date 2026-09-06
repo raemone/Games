@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "games/poop-patrol", "--", "--port", "5174", "--strictPort"],
       "port": 5174
+    },
+    {
+      "name": "roxy-pinball",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "games/roxy-pinball", "--", "--port", "5175", "--strictPort"],
+      "port": 5175
     }
   ]
 }
