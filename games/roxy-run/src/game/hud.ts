@@ -254,6 +254,62 @@ export interface OverlayOptions {
   readonly prompt?: string;
   /** Dim the game behind the panel. */
   readonly dim?: boolean;
+  /** Leave room under the text for a row of buttons. */
+  readonly buttons?: boolean;
+}
+
+/**
+ * How tall the text is at a given scale, from the top of the title to the
+ * bottom of the last line.
+ */
+function textHeight(options: OverlayOptions, size: number): number {
+  const lines = options.lines?.length ?? 0;
+  const span = size * 2.2 + Math.max(lines - 1, 0) * size * 1.5 + (options.prompt ? size * 2.3 : 0);
+  return size * 0.95 + span + size * 0.75;
+}
+
+export interface OverlayFrame {
+  /** Text scale for this overlay, shrunk if the lines would not otherwise fit. */
+  readonly size: number;
+  /** Middle of the title, which the rest of the lines follow. */
+  readonly titleY: number;
+  /** Bottom of the last line drawn. */
+  readonly bottom: number;
+  /** Middle of the row of buttons under the text. */
+  readonly buttonsY: number;
+}
+
+/**
+ * Where an overlay's text and its buttons go.
+ *
+ * The two are placed as one group and centred together in the safe area, so a
+ * recap that has picked up a bonus line and a world rank pushes the buttons
+ * down instead of running underneath them - which is what a fixed fraction of
+ * the height did, and it hid the last line on a phone. When even the safe area
+ * is not enough the text shrinks to fit rather than overflowing.
+ */
+export function overlayFrame(layout: Layout, options: OverlayOptions): OverlayFrame {
+  const full = baseSize(layout);
+  const ceiling = layout.insets.top + full;
+  const bandBottom = layout.height - layout.insets.bottom - full * 0.8;
+  const band = bandBottom - ceiling;
+
+  // The button row, plus the gap above it. Reserved whether or not the text
+  // needs all of it, so the group is centred as one thing.
+  const row = options.buttons === true ? full * 2.4 + full * 2 : 0;
+
+  const wanted = textHeight(options, full);
+  const size = wanted + row <= band ? full : Math.max(9, (full * (band - row)) / wanted);
+  const height = Math.min(textHeight(options, size), Math.max(band - row, 0));
+
+  const top = ceiling + Math.max(0, (band - height - row) / 2);
+  return {
+    size,
+    titleY: top + size * 0.95,
+    bottom: top + height,
+    // Never below the safe area, however the group came out.
+    buttonsY: Math.min(top + height + full * 2 + full * 1.2, bandBottom - full * 1.2),
+  };
 }
 
 export function drawOverlay(
@@ -267,9 +323,9 @@ export function drawOverlay(
     ctx.fillRect(0, 0, layout.width, layout.height);
   }
 
-  const size = baseSize(layout);
+  const { size, titleY } = overlayFrame(layout, options);
   const centreX = layout.width / 2;
-  let y = layout.height / 2 - size * 2.2;
+  let y = titleY;
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
