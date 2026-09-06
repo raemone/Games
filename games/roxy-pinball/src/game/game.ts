@@ -13,6 +13,9 @@ import type { Renderer } from '../engine/renderer';
 import type { SaveData } from '../engine/storage';
 import { load, rankOf, recordGame, save as persist, today } from '../engine/storage';
 import { TableScene } from '../render/scene';
+import { NameEntry } from '../engine/name-entry';
+import type { BoardEntry } from '../engine/leaderboard';
+import { fetchTop, loadName, saveName, submitScore } from '../engine/leaderboard';
 import { APRON_HEIGHT } from './hud';
 import { drawApron, drawBanner, drawControls, drawHud, hitHudButton } from './hud';
 import {
@@ -51,16 +54,29 @@ export class Game {
   private tick = 0;
   private rank = -1;
   private readonly scene: TableScene;
+  private readonly nameEntry: NameEntry;
+  /** The global board, or null until it loads - or for ever, if it cannot. */
+  private globalTop: readonly BoardEntry[] | null = null;
+  private globalRank: number | null = null;
+  private gameStartTick = 0;
 
   constructor(
     private readonly renderer: Renderer,
     private readonly input: Input,
     private readonly audio: Audio,
+    parent: HTMLElement,
   ) {
     this.data = load();
     this.audio.setMuted(this.data.settings.muted);
     this.session = new Session(audio);
     this.scene = new TableScene(renderer.tableCanvas);
+    this.nameEntry = new NameEntry(parent);
+
+    // Fire and forget: the attract screen shows the global board if it arrives
+    // and this device's own scores if it does not.
+    void fetchTop().then((top) => {
+      this.globalTop = top;
+    });
   }
 
   resize(): void {
@@ -76,6 +92,8 @@ export class Game {
       // to clear it too or its own bottom edge is hidden behind the hint text.
       layout.barHeight + APRON_HEIGHT,
     );
+    // Just above the PLAY AGAIN button the game over screen paints.
+    this.nameEntry.place(layout.barHeight + 94);
   }
 
   update(): void {
@@ -142,6 +160,10 @@ export class Game {
     this.session.restart();
     this.screen = 'playing';
     this.rank = -1;
+    this.globalRank = null;
+    this.gameStartTick = this.tick;
+    this.nameEntry.hide();
+    this.nameEntry.reset();
     this.audio.playTune(PLAY_TUNE);
     this.audio.play('select');
   }
@@ -173,6 +195,51 @@ export class Game {
     persist(this.data);
     this.screen = 'gameOver';
     this.audio.playTune(ATTRACT_TUNE);
+    this.offerTheBoard();
+  }
+
+  /**
+   * Offer to put the score on the global board. A game worth nothing is not
+   * worth naming, and the server would reject it anyway.
+   */
+  private offerTheBoard(): void {
+    if (this.session.score.score <= 0) return;
+    this.nameEntry.show(loadName(), (name) => void this.sendScore(name));
+  }
+
+  private async sendScore(name: string): Promise<void> {
+    saveName(name);
+    this.nameEntry.setBusy(true);
+    this.nameEntry.setStatus('Sending...');
+
+    const outcome = await submitScore({
+      name,
+      score: Math.round(this.session.score.score),
+      missions: this.session.missions.completed.length,
+      seconds: Math.max(1, Math.round((this.tick - this.gameStartTick) / 60)),
+      day: today(),
+    });
+
+    if (outcome.kind === 'offline') {
+      this.nameEntry.setBusy(false);
+      this.nameEntry.setStatus('No connection - the score is saved on this device.', 'bad');
+      return;
+    }
+    if (outcome.kind === 'rejected') {
+      this.nameEntry.setBusy(false);
+      this.nameEntry.setStatus(outcome.reason, 'bad');
+      return;
+    }
+
+    this.globalRank = outcome.result.rank;
+    this.globalTop = outcome.result.top;
+    this.nameEntry.collapse();
+    this.nameEntry.setStatus(
+      outcome.result.rank === null
+        ? 'On the board, but not the top two hundred. Good dog anyway.'
+        : `On the global board at number ${outcome.result.rank + 1}.`,
+      'good',
+    );
   }
 
   private updatePaused(input: InputState): void {
@@ -229,7 +296,7 @@ export class Game {
     this.scene.render();
 
     this.renderer.beginScreen();
-    if (this.screen !== 'attract') {
+    if (this.screen === 'playing' || this.screen === 'paused') {
       drawHud(ctx, layout, this.session, this.data.settings.muted);
       drawApron(ctx, layout, this.session);
       drawControls(ctx, layout, this.input, this.session);
@@ -238,13 +305,13 @@ export class Game {
 
     switch (this.screen) {
       case 'attract':
-        drawAttract(ctx, layout, this.data, this.tick);
+        drawAttract(ctx, layout, this.data, this.tick, this.globalTop);
         return;
       case 'paused':
         drawPaused(ctx, layout);
         return;
       case 'gameOver':
-        drawGameOver(ctx, layout, this.session, this.rank, this.tick);
+        drawGameOver(ctx, layout, this.session, this.rank, this.tick, this.globalRank);
         return;
       case 'playing':
         return;

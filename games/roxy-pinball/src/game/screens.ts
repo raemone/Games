@@ -7,11 +7,12 @@
  */
 import type { Layout } from '../engine/renderer';
 import type { SaveData } from '../engine/storage';
+import type { BoardEntry } from '../engine/leaderboard';
 import type { Session } from './session';
 import { PALETTE, dim } from './theme';
 import { MISSIONS } from './missions';
 import { formatScore } from './scoring';
-import { drawBone, drawPaw, drawRoxySitting } from './roxy';
+import { drawPaw, drawRoxySitting } from './roxy';
 
 export interface ScreenButton {
   readonly id: string;
@@ -115,6 +116,7 @@ export function drawAttract(
   layout: Layout,
   save: SaveData,
   tick: number,
+  global: readonly BoardEntry[] | null,
 ): void {
   scrim(ctx, layout, 0.78);
   const centre = layout.width / 2;
@@ -124,7 +126,10 @@ export function drawAttract(
   // Laid out from the top down and the buttons up, so a short phone squeezes
   // Roxy rather than letting the high score table land on top of her.
   const titleY = layout.hudHeight + 56;
-  const lines = save.highScores.length > 0 ? save.highScores.slice(0, 4).length + 1 : 2;
+  // The global board when there is one, this device's own when there is not.
+  const board = global && global.length > 0 ? global.slice(0, 4) : null;
+  const localRows = save.highScores.slice(0, 4);
+  const lines = board ? board.length + 1 : localRows.length > 0 ? localRows.length + 1 : 2;
   const listHeight = lines * 20;
   const roxyTop = titleY + 62;
   const roxyBottom = bottom - listHeight - 44;
@@ -157,12 +162,25 @@ export function drawAttract(
   ctx.fillText('Six missions, three balls, one golden retriever.', centre, roxyY + size * 1.5);
 
   const listTop = bottom - listHeight - 16;
-  if (save.highScores.length > 0) {
+  if (board) {
     ctx.fillStyle = PALETTE.gold;
     ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.fillText('BEST IN SHOW', centre, listTop);
+    ctx.fillText('BEST IN SHOW - WORLDWIDE', centre, listTop);
     ctx.font = '14px system-ui, sans-serif';
-    save.highScores.slice(0, 4).forEach((entry, index) => {
+    board.forEach((entry, index) => {
+      ctx.fillStyle = index === 0 ? PALETTE.ink : PALETTE.muted;
+      ctx.fillText(
+        `${index + 1}.  ${entry.name}   ${formatScore(entry.score)}`,
+        centre,
+        listTop + 20 + index * 20,
+      );
+    });
+  } else if (localRows.length > 0) {
+    ctx.fillStyle = PALETTE.gold;
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('BEST ON THIS DEVICE', centre, listTop);
+    ctx.font = '14px system-ui, sans-serif';
+    localRows.forEach((entry, index) => {
       ctx.fillStyle = index === 0 ? PALETTE.ink : PALETTE.muted;
       ctx.fillText(
         `${index + 1}.  ${formatScore(entry.score)}   ${entry.missions}/${MISSIONS.length}`,
@@ -199,44 +217,51 @@ export function drawGameOver(
   session: Session,
   rank: number,
   tick: number,
+  globalRank: number | null,
 ): void {
   scrim(ctx, layout, 0.88);
   const centre = layout.width / 2;
+  const top = layout.hudHeight;
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = PALETTE.ink;
-  ctx.font = 'bold 22px system-ui, sans-serif';
-  ctx.fillText('GAME OVER', centre, layout.hudHeight + 46);
+  ctx.font = 'bold 20px system-ui, sans-serif';
+  ctx.fillText('GAME OVER', centre, top + 34);
 
   ctx.fillStyle = PALETTE.gold;
-  ctx.font = `bold ${Math.round(Math.min(46, layout.width * 0.11))}px system-ui, sans-serif`;
-  ctx.fillText(formatScore(session.score.score), centre, layout.hudHeight + 96);
+  ctx.font = `bold ${Math.round(Math.min(42, layout.width * 0.1))}px system-ui, sans-serif`;
+  ctx.fillText(formatScore(session.score.score), centre, top + 78);
 
   ctx.fillStyle = PALETTE.muted;
   ctx.font = '14px system-ui, sans-serif';
   ctx.fillText(
     `${session.missions.completed.length} of ${MISSIONS.length} missions`,
     centre,
-    layout.hudHeight + 128,
+    top + 108,
   );
 
   if (rank >= 0) {
     ctx.fillStyle = PALETTE.pink;
-    ctx.font = 'bold 16px system-ui, sans-serif';
-    ctx.fillText(`NEW HIGH SCORE - NUMBER ${rank + 1}`, centre, layout.hudHeight + 156);
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText(`BEST ON THIS DEVICE - NUMBER ${rank + 1}`, centre, top + 134);
   }
 
-  drawRoxySitting(ctx, centre, layout.height * 0.5, Math.min(84, layout.width * 0.21), {
-    squint: rank >= 0 ? 0.9 : 0.2,
-    tongue: rank >= 0 ? 0.9 : 0.35,
+  // Roxy sits between the score and the name box, small enough that the form
+  // below her is never pushed off a short screen.
+  const size = Math.min(66, layout.width * 0.17);
+  const roxyY = top + 172 + size * 0.4;
+  drawRoxySitting(ctx, centre, roxyY, size, {
+    squint: globalRank !== null || rank >= 0 ? 0.9 : 0.2,
+    tongue: globalRank !== null || rank >= 0 ? 0.9 : 0.35,
     tilt: Math.sin(tick / 44) * 0.05,
   });
 
-  ctx.save();
-  ctx.fillStyle = dim(PALETTE.gold, 0.5);
-  drawBone(ctx, centre, layout.height * 0.5 + 132, 40, Math.sin(tick / 50) * 0.2);
-  ctx.restore();
+  if (globalRank !== null) {
+    ctx.fillStyle = PALETTE.green;
+    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.fillText(`WORLD NUMBER ${globalRank + 1}`, centre, roxyY + size * 1.7);
+  }
 
   drawButtons(ctx, gameOverButtons(layout));
 }

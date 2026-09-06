@@ -15,7 +15,7 @@ function boot(): void {
   const renderer = new Renderer(app);
   const input = new Input(renderer.canvas);
   const audio = new Audio();
-  const game = new Game(renderer, input, audio);
+  const game = new Game(renderer, input, audio, app);
 
   // Handy when poking at the table from the browser console. Dev builds only.
   if (import.meta.env.DEV) {

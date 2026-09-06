@@ -118,6 +118,11 @@ export class TableScene {
   private ballGeometry!: SphereGeometry;
   private ballMaterial!: MeshStandardMaterial;
 
+  private lastFrame = 0;
+  private slowFrames = 0;
+  private downgraded = false;
+  private wantedPixelRatio = 1;
+
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -471,7 +476,8 @@ export class TableScene {
     hudHeight: number,
     barHeight: number,
   ): void {
-    this.renderer.setPixelRatio(pixelRatio);
+    this.wantedPixelRatio = pixelRatio;
+    this.renderer.setPixelRatio(this.downgraded ? Math.min(1, pixelRatio) : pixelRatio);
     this.renderer.setSize(width, height, false);
 
     const band = Math.max(120, height - hudHeight - barHeight);
@@ -609,7 +615,44 @@ export class TableScene {
   }
 
   render(): void {
+    this.watchFrameRate();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Drop the expensive half of the lighting on a device that cannot keep up.
+   *
+   * Shadows and a full-resolution buffer are what make the table look like an
+   * object, but a table nobody can play is worth nothing, and this game is
+   * aimed at whatever tablet is in the house. So it watches its own frame time
+   * and, if it has been genuinely bad for a second and a half rather than for
+   * one unlucky frame, gives up the shadows and renders at one device pixel per
+   * CSS pixel. It only ever goes one way: a renderer that flips back and forth
+   * as the load changes is worse than either setting.
+   */
+  private watchFrameRate(): void {
+    const now = performance.now();
+    const elapsed = now - this.lastFrame;
+    this.lastFrame = now;
+    if (this.downgraded || elapsed <= 0 || elapsed > 1000) return;
+
+    // Two frames' worth of budget at 30fps. Anything slower than this is not a
+    // stutter, it is the device telling you what it can do.
+    this.slowFrames = elapsed > 66 ? this.slowFrames + 1 : 0;
+    if (this.slowFrames < 45) return;
+
+    this.downgraded = true;
+    this.renderer.shadowMap.enabled = false;
+    this.renderer.setPixelRatio(Math.min(1, this.wantedPixelRatio));
+    this.scene.environmentIntensity = 0.5;
+    // Materials compiled with shadows baked into them have to be rebuilt.
+    this.scene.traverse((object) => {
+      const mesh = object as Mesh;
+      if (!mesh.material) return;
+      for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        material.needsUpdate = true;
+      }
+    });
   }
 
   dispose(): void {
