@@ -56,6 +56,8 @@ export const PLUNGER_MAX_SPEED = 25.5;
 export const FLIPPER_LEFT_PIVOT: Vec = { x: 108, y: 548 };
 export const FLIPPER_RIGHT_PIVOT: Vec = { x: 238, y: 548 };
 export const FLIPPER_LENGTH = 52;
+/** Half the width of a flipper bat, and the radius the ball collides against. */
+export const FLIPPER_RADIUS = 7;
 export const FLIPPER_REST_ANGLE = 0.5;
 export const FLIPPER_ACTIVE_ANGLE = -0.55;
 
